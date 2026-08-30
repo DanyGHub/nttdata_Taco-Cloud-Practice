@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,6 +44,24 @@ public class IngredientController {
     return repo.findById(id);
   }
 
+  // TC-01 — Actualizar un ingrediente sin perder el publisher
+  @PutMapping("/{id}")
+  public Mono<ResponseEntity<Ingredient>> updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient){
+    if (!ingredient.getId().equals(id)){
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Given ingredient's ID doesn't match the ID in the path."));
+    }
+
+    return repo.findById(id)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Ingredient Not Found")))
+        .flatMap(i_found -> repo.save(ingredient))
+        .map(i -> {
+          HttpHeaders headers = new HttpHeaders();
+          headers.setLocation(URI.create("http://localhost:8080/ingredients/" + i.getId()));
+          return new ResponseEntity<Ingredient>(i, headers, HttpStatus.OK);
+        });
+  }
+
+  /*
   @PutMapping("/{id}")
   public void updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient) {
     if (!ingredient.getId().equals(id)) {
@@ -50,6 +69,7 @@ public class IngredientController {
     }
     repo.save(ingredient);
   }
+  */
 
   @PostMapping
   public Mono<ResponseEntity<Ingredient>> postIngredient(@RequestBody Mono<Ingredient> ingredient) {

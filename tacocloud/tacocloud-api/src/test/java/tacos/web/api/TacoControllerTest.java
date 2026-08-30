@@ -17,6 +17,8 @@ import tacos.Ingredient;
 import tacos.Ingredient.Type;
 import tacos.Taco;
 import tacos.data.TacoRepository;
+import tacos.data.IngredientRepository;
+
 
 public class TacoControllerTest {
 
@@ -76,6 +78,62 @@ public class TacoControllerTest {
       .expectStatus().isCreated()
       .expectBody(Taco.class)
         .isEqualTo(savedTaco);
+  }
+
+  @Test
+  public void shouldUpdateIngredientOk(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+    Ingredient i = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
+    Ingredient i_put = new Ingredient("FLTO", "Flour Tortilla Updated", Type.WRAP);
+
+    Mono<Ingredient> iMono = Mono.just(i);
+    Mono<Ingredient> iMonoPut = Mono.just(i_put);
+
+    when(repo.findById("FLTO")).thenReturn(iMono);
+    when(repo.save(any(Ingredient.class))).thenReturn(iMonoPut);
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.put()
+        .uri("/api/ingredients/FLTO")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(iMonoPut, Ingredient.class)
+        .exchange()
+        .expectStatus().isOk()
+        .expectHeader().location("http://localhost:8080/ingredients/FLTO")
+        .expectBody(Ingredient.class)
+        .isEqualTo(i_put);
+  }
+
+  @Test
+  public void shouldUpdateIngredientBadRequest(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+    Ingredient i_br = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
+    Mono<Ingredient> iMonoBr = Mono.just(i_br);
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.put()
+        .uri("/api/ingredients/FLTOs")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(iMonoBr, Ingredient.class)
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test
+  public void shouldUpdateIngredientNotFound(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+    Ingredient i_nf = new Ingredient("FLTOS","Flour Tortilla", Type.WRAP);
+    Mono<Ingredient> iMonoNf = Mono.just(i_nf);
+
+    when(repo.findById("FLTOS")).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.put()
+        .uri("/api/ingredients/FLTOS")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(iMonoNf, Ingredient.class)
+        .exchange()
+        .expectStatus().isNotFound();
   }
 
   private Taco testTaco(Long number) {
