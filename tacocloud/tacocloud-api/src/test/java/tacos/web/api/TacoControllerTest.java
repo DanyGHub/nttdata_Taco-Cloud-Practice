@@ -136,6 +136,33 @@ public class TacoControllerTest {
         .expectStatus().isNotFound();
   }
 
+  @Test
+  public void shouldDeleteIngredientNoContent(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+
+    when(repo.existsById("FLTO")).thenReturn(Mono.just(true));
+    when(repo.deleteById("FLTO")).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.delete()
+        .uri("/api/ingredients/FLTO")
+        .exchange()
+        .expectStatus().isNoContent();
+  }
+
+  @Test
+  public void shouldDeleteIngredientNotFound(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+
+    when(repo.existsById("FLTOS")).thenReturn(Mono.just(false));
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.delete()
+        .uri("/api/ingredients/FLTOS")
+        .exchange()
+        .expectStatus().isNotFound();
+  }
+
   private Taco testTaco(Long number) {
     Taco taco = new Taco();
     taco.setId(number != null ? number.toString(): "TESTID");

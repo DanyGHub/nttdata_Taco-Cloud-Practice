@@ -82,9 +82,24 @@ public class IngredientController {
         });
   }
 
+  // TC-02 — Eliminar de verdad y responder con semántica HTTP
+  @DeleteMapping("/{id}")
+  public Mono<ResponseEntity<Void>> deleteIngredient(@PathVariable String id){
+    return repo.existsById(id)
+        .flatMap(i_found -> {
+          if (i_found){
+            return repo.deleteById(id)
+                .then(Mono.just(new ResponseEntity<Void>(HttpStatus.NO_CONTENT)));
+          } else {
+            return Mono.just(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
+          }
+        });
+  }
+
+  /*
   @DeleteMapping("/{id}")
   public void deleteIngredient(@PathVariable String id) {
     repo.deleteById(id);
   }
-
+  */
 }
