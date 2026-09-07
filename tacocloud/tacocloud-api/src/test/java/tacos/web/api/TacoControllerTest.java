@@ -1,5 +1,6 @@
 package tacos.web.api;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -9,7 +10,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.http.HttpHeaders;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -161,6 +167,65 @@ public class TacoControllerTest {
         .uri("/api/ingredients/FLTOS")
         .exchange()
         .expectStatus().isNotFound();
+  }
+
+  @Test
+  public void shouldPostIngredientCreated(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+    Ingredient i_post = new Ingredient("TCO", "Taco", Type.WRAP);
+
+    when(repo.save(any(Ingredient.class))).thenReturn(Mono.just(i_post));
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.post()
+        .uri("/api/ingredients")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(i_post)
+        .exchange()
+        .expectStatus().isCreated()
+        .expectHeader().value(HttpHeaders.LOCATION, location -> {
+          assertTrue(location.endsWith("/api/ingredients/TCO"), "Location: " + location);
+        })
+        .expectBody(Ingredient.class).isEqualTo(i_post);
+  }
+
+  @Test
+  public void shouldPostIngredientBadRequest() {
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    testClient.post()
+        .uri("/api/ingredients")
+        .contentType(MediaType.APPLICATION_JSON)
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test 
+  public void shouldFollowLocationOk(){
+    IngredientRepository repo = Mockito.mock(IngredientRepository.class);
+    Ingredient i_post = new Ingredient("TCO", "Taco", Type.WRAP);
+
+    when(repo.save(any(Ingredient.class))).thenReturn(Mono.just(i_post));
+    when(repo.findById("TCO")).thenReturn(Mono.just(i_post));
+
+    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(repo)).build();
+    
+    String location = testClient.post()
+        .uri("/api/ingredients")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(i_post)
+        .exchange()
+        .expectStatus().isCreated()
+        .returnResult(Ingredient.class)
+        .getResponseHeaders().getFirst(HttpHeaders.LOCATION);
+
+    testClient.get()
+        .uri(location)
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody(Ingredient.class)
+        .isEqualTo(i_post);
   }
 
   private Taco testTaco(Long number) {

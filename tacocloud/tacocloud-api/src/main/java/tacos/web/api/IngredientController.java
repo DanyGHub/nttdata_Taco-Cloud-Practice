@@ -2,6 +2,8 @@ package tacos.web.api;
 
 import java.net.URI;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -71,6 +75,17 @@ public class IngredientController {
   }
   */
 
+  // TC-03 Construir Location sin localhost ni rutas rotas | NOTA: usar UriComponentsBuilder no funciona con WebTestClient, por lo que se usa ServerHttpRequest
+  @PostMapping
+  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient, ServerHttpRequest request) {
+    return repo.save(ingredient)
+        .map(i -> {
+          URI location = UriComponentsBuilder.fromHttpRequest(request).path("/{id}").buildAndExpand(i.getId()).toUri();
+          return ResponseEntity.created(location).body(i);
+        });
+  }
+
+  /*
   @PostMapping
   public Mono<ResponseEntity<Ingredient>> postIngredient(@RequestBody Mono<Ingredient> ingredient) {
     return ingredient
@@ -81,6 +96,7 @@ public class IngredientController {
           return new ResponseEntity<Ingredient>(i, headers, HttpStatus.CREATED);
         });
   }
+  */
 
   // TC-02 — Eliminar de verdad y responder con semántica HTTP
   @DeleteMapping("/{id}")
