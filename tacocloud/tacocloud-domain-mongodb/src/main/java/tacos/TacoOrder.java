@@ -42,6 +42,6 @@ public class TacoOrder implements Serializable {
 
   public void addTaco(Taco design) {
     this.tacos.add(design);
-}
+  }
 
 }

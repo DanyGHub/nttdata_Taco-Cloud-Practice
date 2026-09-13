@@ -294,7 +294,6 @@ public class TacoControllerTest {
     TacoOrder order = new TacoOrder();
     order.setId("ORDER1");
     order.setUser(user);
-    order.setDeliveryState("goodstate");
     order.setDeliveryZip("11111");
 
     when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
@@ -311,7 +310,43 @@ public class TacoControllerTest {
         .expectStatus().isOk()
         .expectBody()
         .jsonPath("$.deliveryZip").isEqualTo("22222")
-        .jsonPath("$.deliveryState").isEqualTo("goodstate");
+        .jsonPath("$.id").isEqualTo("ORDER1");
+  }
+
+  @Test 
+  public void shouldPatchOrderBadRequest() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryZip("11111");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.save(any(TacoOrder.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+
+    testClient.patch()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue("{\"id\":\"ORDER2\",\"deliveryZip\":\"22222\"}")
+        .exchange()
+        .expectStatus().isBadRequest();
   }
 
   @Test
@@ -352,7 +387,6 @@ public class TacoControllerTest {
     TacoOrder order = new TacoOrder();
     order.setId("ORDER1");
     order.setUser(user);
-    order.setDeliveryState("goodstate");
     order.setDeliveryZip("11111");
 
     when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
@@ -363,6 +397,246 @@ public class TacoControllerTest {
         .uri("/api/orders/ORDER1")
         .contentType(MediaType.APPLICATION_JSON)
         .bodyValue("{\"deliveryZip\":\"22222\"}")
+        .exchange()
+        .expectStatus().isForbidden();
+  }
+
+  @Test 
+  public void shouldPutOrderOk(){
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.save(any(TacoOrder.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+
+    String json = "{"
+        + "\"deliveryName\":\"New Name\","
+        + "\"deliveryStreet\":\"New Street\","
+        + "\"deliveryCity\":\"New City\","
+        + "\"deliveryState\":\"New State\","
+        + "\"deliveryZip\":\"New Zip\","
+        + "\"tacos\":[{\"name\":\"Taco Nuevo\", \"ingredients\":[{\"id\":\"FLTO\",\"name\":\"Flour Tortilla\",\"type\":\"WRAP\"}]}]"
+        + "}";
+
+    testClient.put()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(json)
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.deliveryName").isEqualTo("New Name")
+        .jsonPath("$.deliveryStreet").isEqualTo("New Street");
+  }
+
+  @Test
+  public void shouldPutOrderBadRequest() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.save(any(TacoOrder.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+    String json = "{\"id\":\"ORDER2\", \"deliveryCity\":\"New City\"}";
+    testClient.put()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(json)
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test 
+  public void shouldPutOrderNotFound() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    when(repo.findById("UNKNOWN")).thenReturn(Mono.empty());
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+
+    String json = "{\"deliveryCity\":\"New City\"}";
+
+    testClient.put()
+        .uri("/api/orders/UNKNOWN")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(json)
+        .exchange()
+        .expectStatus().isNotFound();
+  }
+
+  @Test 
+  public void shouldPutOrderForbidden(){
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.save(any(TacoOrder.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser-2", controller);
+    String json = "{\"deliveryCity\":\"New City\"}";
+    testClient.put()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(json)
+        .exchange()
+        .expectStatus().isForbidden();
+  }
+
+  @Test 
+  public void shouldDeleteOrderNoContent() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.deleteById("ORDER1")).thenReturn(Mono.empty());
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+
+    testClient.delete()
+        .uri("/api/orders/ORDER1")
+        .exchange()
+        .expectStatus().isNoContent();
+  }
+
+  @Test 
+  public void shouldDeleteOrderNotFound(){
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER2")).thenReturn(Mono.empty());
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+
+    testClient.delete()
+        .uri("/api/orders/ORDER2")
+        .exchange()
+        .expectStatus().isNotFound();
+  }
+
+  @Test 
+  public void shouldDeleteOrderForbidden(){
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryCity("City");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser-2", controller);
+    testClient.delete()
+        .uri("/api/orders/ORDER1")
         .exchange()
         .expectStatus().isForbidden();
   }
