@@ -13,12 +13,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.ResponseEntity;
+import javax.validation.Valid;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.web.api.dto.OrderPatchDTO;
+import java.security.Principal;
 
 @RestController
 @RequestMapping(path="/api/orders",
@@ -72,6 +77,48 @@ public class OrderApiController {
     return order.flatMap(repo::save);
   }
 
+  // TC-04 — PATCH de órdenes con lista blanca y sin ZIP mutante
+  @PatchMapping (path="/{orderId}", consumes="application/json")
+  public Mono<ResponseEntity<TacoOrder>> patchOrder(
+        @PathVariable("orderId") String orderId, 
+        @Valid @RequestBody OrderPatchDTO patch,
+        Mono<Principal> mono){
+
+    return mono
+      .map(Principal::getName)
+      .defaultIfEmpty("anonymousUser")
+      .flatMap(user -> repo.findById(orderId)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden no encontrada"))) //Status: 404
+        .flatMap(order -> {
+          boolean isOwner = order.getUser() != null && user.equals(order.getUser().getUsername());
+          boolean isAdmin = user.equals("admin");
+            
+          if (!isOwner && !isAdmin) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to modify this order")); //Status: 403
+          }
+
+          if (patch.getDeliveryName() != null) {
+            order.setDeliveryName(patch.getDeliveryName());
+          }
+          if (patch.getDeliveryStreet() != null) {
+            order.setDeliveryStreet(patch.getDeliveryStreet());
+          }
+          if (patch.getDeliveryCity() != null) {
+            order.setDeliveryCity(patch.getDeliveryCity());
+          }
+          if (patch.getDeliveryState() != null) {
+            order.setDeliveryState(patch.getDeliveryState());
+          }
+          if (patch.getDeliveryZip() != null) {
+            order.setDeliveryZip(patch.getDeliveryZip());
+          }
+          return repo.save(order);
+        })
+      )
+      .map(savedOrder -> ResponseEntity.ok(savedOrder)); //Status: 200
+  }
+
+  /*
   @PatchMapping(path="/{orderId}", consumes="application/json")
   public Mono<TacoOrder> patchOrder(@PathVariable("orderId") String orderId,
                           @RequestBody TacoOrder patch) {
@@ -106,6 +153,7 @@ public class OrderApiController {
         })
         .flatMap(repo::save);
   }
+  */
 
   @DeleteMapping("/{orderId}")
   @ResponseStatus(HttpStatus.NO_CONTENT)

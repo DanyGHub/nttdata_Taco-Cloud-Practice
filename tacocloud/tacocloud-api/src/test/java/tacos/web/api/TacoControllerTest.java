@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,13 @@ import tacos.Ingredient.Type;
 import tacos.Taco;
 import tacos.data.TacoRepository;
 import tacos.data.IngredientRepository;
+
+import tacos.User;
+import tacos.TacoOrder;
+import tacos.data.OrderRepository;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import tacos.messaging.OrderMessagingService;
 
 
 public class TacoControllerTest {
@@ -239,5 +247,123 @@ public class TacoControllerTest {
         new Ingredient("INGB", "Ingredient B", Type.PROTEIN));
     taco.setIngredients(ingredients);
     return taco;
+  }
+
+  //OrderApiController tests
+  
+  // Create a WebTestClient with a mock principal for testing OrderApiController
+  private WebTestClient buildClientWithUser(String user, OrderApiController controller) {
+    return WebTestClient.bindToController(controller)
+        .webFilter((exchange, chain) -> chain.filter(exchange.mutate().principal(Mono.just(() -> user)).build()))
+        .controllerAdvice(new Object() {
+          @ExceptionHandler({
+              WebExchangeBindException.class, 
+              HttpMessageNotReadableException.class,
+              org.springframework.web.server.ServerWebInputException.class,
+              org.springframework.core.codec.DecodingException.class
+          })
+          public ResponseEntity<Void> handleBadRequest() {
+            return ResponseEntity.badRequest().build();
+          }
+          
+          @ExceptionHandler(ResponseStatusException.class)
+          public ResponseEntity<Void> handleResponseStatus(ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatus()).build();
+          }
+        })
+        .build();
+  }
+
+  @Test
+  public void shouldPatchOrderOk() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+    
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryState("goodstate");
+    order.setDeliveryZip("11111");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+    when(repo.save(any(TacoOrder.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
+    
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+    
+    testClient.patch()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue("{\"deliveryZip\":\"22222\"}")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.deliveryZip").isEqualTo("22222")
+        .jsonPath("$.deliveryState").isEqualTo("goodstate");
+  }
+
+  @Test
+  public void shouldPatchOrderNotFound() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    when(repo.findById("UNKNOWN")).thenReturn(Mono.empty());
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("testuser", controller);
+    testClient.patch()
+        .uri("/api/orders/UNKNOWN")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue("{\"deliveryZip\":\"22222\"}")
+        .exchange()
+        .expectStatus().isNotFound();
+  }
+
+  @Test 
+  public void shouldPatchOrderForbidden() {
+    OrderRepository repo = Mockito.mock(OrderRepository.class);
+    OrderMessagingService messagingService = Mockito.mock(OrderMessagingService.class);
+    EmailOrderService emailService = Mockito.mock(EmailOrderService.class);
+
+    User user = new User(
+      "testuser", 
+      "pass123", 
+      "Angel Lopez", 
+      "street123", 
+      "Ags", 
+      "goodstate", 
+      "12345", 
+      "123-456-7890", 
+      "testuser@example.com");
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER1");
+    order.setUser(user);
+    order.setDeliveryState("goodstate");
+    order.setDeliveryZip("11111");
+
+    when(repo.findById("ORDER1")).thenReturn(Mono.just(order));
+
+    OrderApiController controller = new OrderApiController(repo, messagingService, emailService);
+    WebTestClient testClient = buildClientWithUser("otheruser", controller);
+    testClient.patch()
+        .uri("/api/orders/ORDER1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue("{\"deliveryZip\":\"22222\"}")
+        .exchange()
+        .expectStatus().isForbidden();
   }
 }
