@@ -75,12 +75,12 @@ public class IngredientController {
   }
   */
 
-  // TC-03 Construir Location sin localhost ni rutas rotas | NOTA: usar UriComponentsBuilder no funciona con WebTestClient, por lo que se usa ServerHttpRequest
+  // TC-03 Construir Location sin localhost ni rutas rotas
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient, ServerHttpRequest request) {
+  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient) {
     return repo.save(ingredient)
         .map(i -> {
-          URI location = UriComponentsBuilder.fromHttpRequest(request).path("/{id}").buildAndExpand(i.getId()).toUri();
+          URI location = URI.create("api/ingredients" + i.getId());
           return ResponseEntity.created(location).body(i);
         });
   }
