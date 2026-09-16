@@ -65,14 +65,23 @@ public class OrderApiController {
     return repo.save(order);
   }
 
+  // TC-07: Una sola suscripción para guardar y publicar (save-then-send)
   @PostMapping(path="fromEmail", consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<TacoOrder> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
-    Mono<TacoOrder> order = emailOrderService.convertEmailOrderToDomainOrder(emailOrder);
-    order.subscribe(orderMessages::sendOrder); // TODO: not ideal...work into reactive flow below
-    return order
-        .flatMap(repo::save);
+    return emailOrderService.convertEmailOrderToDomainOrder(emailOrder)
+        .flatMap(repo::save)                  // Garantiza consistencia de la base de datos antes de enviar el mensaje
+        .doOnNext(orderMessages::sendOrder);  // Implementar Outbox para TC-29
   }
+
+  // @PostMapping(path="fromEmail", consumes="application/json")
+  // @ResponseStatus(HttpStatus.CREATED)
+  // public Mono<TacoOrder> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
+  //   Mono<TacoOrder> order = emailOrderService.convertEmailOrderToDomainOrder(emailOrder);
+  //   order.subscribe(orderMessages::sendOrder); // TODO: not ideal...work into reactive flow below
+  //   return order
+  //       .flatMap(repo::save);
+  // }
 
   // TC-04 — PATCH de órdenes con lista blanca y sin ZIP mutante
   @PatchMapping(path="/{orderId}", consumes="application/json")
