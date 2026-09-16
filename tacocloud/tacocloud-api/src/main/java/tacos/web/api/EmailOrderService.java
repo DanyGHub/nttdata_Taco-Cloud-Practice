@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.Ingredient;
-import tacos.TacoOrder;
 import tacos.PaymentMethod;
 import tacos.Taco;
+import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.IngredientRepository;
 import tacos.data.PaymentMethodRepository;
@@ -32,20 +32,39 @@ public class EmailOrderService {
     this.paymentMethodRepo = paymentMethodRepo;
   }
 
+  // TC-06: Convertir órdenes de correo sin carreras ni nulls sorpresa
   public Mono<TacoOrder> convertEmailOrderToDomainOrder(Mono<EmailOrder> emailOrder) {
-    // TODO: Probably should handle unhappy case where email address doesn't match a given user or
-    //       where the user doesn't have at least one payment method.
-
     return emailOrder.flatMap(eOrder -> {
-      Mono<User> userMono = userRepo.findByEmail(eOrder.getEmail());
+      Mono<User> userMono = userRepo.findByEmail(eOrder.getEmail())
+          .switchIfEmpty(Mono.error(new IllegalStateException("User not found for email: " + eOrder.getEmail()))) // User not found
+          .cache();
 
-      Mono<PaymentMethod> paymentMono = userMono.flatMap(user -> {
-        return paymentMethodRepo.findByUserId(user.getId());
-      });
-      return Mono.zip(userMono, paymentMono)
-          .flatMap(tuple -> {
+      Mono<PaymentMethod> paymentMono = userMono.flatMap(user -> paymentMethodRepo.findByUserId(user.getId())
+          .switchIfEmpty(Mono.error(new IllegalStateException("Payment method not found for user ID: " + user.getId()))) // Payment method not found
+      );
+
+      Mono<List<Taco>> tacosMono = Flux.fromIterable(eOrder.getTacos()) // EmailTaco to Taco
+          .concatMap(emailTaco ->
+              Flux.fromIterable(emailTaco.getIngredients())
+                  .concatMap(ingredientId -> ingredientRepo.findById(ingredientId)
+                      .switchIfEmpty(Mono.error(new IllegalArgumentException("Unknown ingredient ID: " + ingredientId))) // Ingredient not found
+                  )
+                  .collectList()
+                  .map(ingredients -> {
+                    Taco taco = new Taco();
+                    taco.setName(emailTaco.getName());
+                    taco.setIngredients(ingredients);
+                    return taco;
+                  })
+          )
+          .collectList();
+
+      return Mono.zip(userMono, paymentMono, tacosMono) // Combine user, payment method, and tacos into a TacoOrder
+          .map(tuple -> {
             User user = tuple.getT1();
             PaymentMethod paymentMethod = tuple.getT2();
+            List<Taco> tacos = tuple.getT3();
+
             TacoOrder order = new TacoOrder();
             order.setUser(user);
             order.setCcNumber(paymentMethod.getCcNumber());
@@ -57,26 +76,58 @@ public class EmailOrderService {
             order.setDeliveryState(user.getState());
             order.setDeliveryZip(user.getZip());
             order.setPlacedAt(new Date());
+            order.setTacos(tacos);
 
-            return emailOrder.map(eOrd -> {
-              List<EmailTaco> emailTacos = eOrd.getTacos();
-              for (EmailTaco emailTaco : emailTacos) {
-                List<String> ingredientIds = emailTaco.getIngredients();
-                List<Ingredient> ingredients = new ArrayList<>();
-                for (String ingredientId : ingredientIds) {
-                  Mono<Ingredient> ingredientMono = ingredientRepo.findById(ingredientId);
-                  ingredientMono.subscribe(ingredient ->
-                      ingredients.add(ingredient));
-                }
-                Taco taco = new Taco();
-                taco.setName(emailTaco.getName());
-                taco.setIngredients(ingredients);
-                order.addTaco(taco);
-              }
-              return order;
-            });
+            return order;
           });
     });
   }
+
+  // public Mono<TacoOrder> convertEmailOrderToDomainOrder(Mono<EmailOrder> emailOrder) {
+  //   // TODO: Probably should handle unhappy case where email address doesn't match a given user or
+  //   //       where the user doesn't have at least one payment method.
+
+  //   return emailOrder.flatMap(eOrder -> {
+  //     Mono<User> userMono = userRepo.findByEmail(eOrder.getEmail());
+
+  //     Mono<PaymentMethod> paymentMono = userMono.flatMap(user -> {
+  //       return paymentMethodRepo.findByUserId(user.getId());
+  //     });
+  //     return Mono.zip(userMono, paymentMono)
+  //         .flatMap(tuple -> {
+  //           User user = tuple.getT1();
+  //           PaymentMethod paymentMethod = tuple.getT2();
+  //           TacoOrder order = new TacoOrder();
+  //           order.setUser(user);
+  //           order.setCcNumber(paymentMethod.getCcNumber());
+  //           order.setCcCVV(paymentMethod.getCcCVV());
+  //           order.setCcExpiration(paymentMethod.getCcExpiration());
+  //           order.setDeliveryName(user.getFullname());
+  //           order.setDeliveryStreet(user.getStreet());
+  //           order.setDeliveryCity(user.getCity());
+  //           order.setDeliveryState(user.getState());
+  //           order.setDeliveryZip(user.getZip());
+  //           order.setPlacedAt(new Date());
+
+  //           return emailOrder.map(eOrd -> {
+  //             List<EmailTaco> emailTacos = eOrd.getTacos();
+  //             for (EmailTaco emailTaco : emailTacos) {
+  //               List<String> ingredientIds = emailTaco.getIngredients();
+  //               List<Ingredient> ingredients = new ArrayList<>();
+  //               for (String ingredientId : ingredientIds) {
+  //                 Mono<Ingredient> ingredientMono = ingredientRepo.findById(ingredientId);
+  //                 ingredientMono.subscribe(ingredient ->
+  //                     ingredients.add(ingredient));
+  //               }
+  //               Taco taco = new Taco();
+  //               taco.setName(emailTaco.getName());
+  //               taco.setIngredients(ingredients);
+  //               order.addTaco(taco);
+  //             }
+  //             return order;
+  //           });
+  //         });
+  //   });
+  // }
 
 }
