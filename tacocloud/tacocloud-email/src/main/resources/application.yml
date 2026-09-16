@@ -6,7 +6,7 @@ tacocloud:
   api:
     url: http://localhost:8080/orders/fromEmail
 # You'll need to tweak these settings to fit an incoming mail server of your choosing.
- email:
+  email:
    host: imap.tacocloud.com
    mailbox: INBOX
    username: taco-in-flow

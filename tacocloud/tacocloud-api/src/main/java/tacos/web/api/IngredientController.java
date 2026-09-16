@@ -50,19 +50,14 @@ public class IngredientController {
 
   // TC-01 — Actualizar un ingrediente sin perder el publisher
   @PutMapping("/{id}")
-  public Mono<ResponseEntity<Ingredient>> updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient){
-    if (!ingredient.getId().equals(id)){
-      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Given ingredient's ID doesn't match the ID in the path."));
-    }
+  public Mono<ResponseEntity<Ingredient>> updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient) {
+    if (ingredient.getId() == null || !ingredient.getId().equals(id))
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ingredient's ID doesn't match the ID in the path.")); // Status 400
 
     return repo.findById(id)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Ingredient Not Found")))
-        .flatMap(i_found -> repo.save(ingredient))
-        .map(i -> {
-          HttpHeaders headers = new HttpHeaders();
-          headers.setLocation(URI.create("http://localhost:8080/ingredients/" + i.getId()));
-          return new ResponseEntity<Ingredient>(i, headers, HttpStatus.OK);
-        });
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Ingredient Not Found"))) // Status 404
+        .flatMap(existing -> repo.save(ingredient))
+        .map(saved -> ResponseEntity.ok(saved));    // Status 200
   }
 
   /*
@@ -77,11 +72,20 @@ public class IngredientController {
 
   // TC-03 Construir Location sin localhost ni rutas rotas
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient) {
+  public Mono<ResponseEntity<Ingredient>> postIngredient(@RequestBody(required = false) Ingredient ingredient) {
+    if (ingredient == null 
+        || ingredient.getId() == null || ingredient.getId().trim().isEmpty()
+        || ingredient.getName() == null || ingredient.getName().trim().isEmpty()
+        || ingredient.getType() == null) {
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid ingredient: id, name, and type are required"));  // Status 400
+    }
+
     return repo.save(ingredient)
-        .map(i -> {
-          URI location = URI.create("api/ingredients" + i.getId());
-          return ResponseEntity.created(location).body(i);
+        .map(saved -> {
+          URI location = UriComponentsBuilder.fromPath("/api/ingredients/{id}")
+              .buildAndExpand(saved.getId())
+              .toUri();
+          return ResponseEntity.created(location).body(saved);
         });
   }
 
@@ -100,14 +104,14 @@ public class IngredientController {
 
   // TC-02 — Eliminar de verdad y responder con semántica HTTP
   @DeleteMapping("/{id}")
-  public Mono<ResponseEntity<Void>> deleteIngredient(@PathVariable String id){
+  public Mono<ResponseEntity<Void>> deleteIngredient(@PathVariable String id) {
     return repo.existsById(id)
-        .flatMap(i_found -> {
-          if (i_found){
+        .flatMap(exists -> {
+          if (exists) {
             return repo.deleteById(id)
-                .then(Mono.just(new ResponseEntity<Void>(HttpStatus.NO_CONTENT)));
+                .thenReturn(new ResponseEntity<Void>(HttpStatus.NO_CONTENT)); // Status 204
           } else {
-            return Mono.just(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
+            return Mono.just(new ResponseEntity<Void>(HttpStatus.NOT_FOUND)); // Status 404
           }
         });
   }
