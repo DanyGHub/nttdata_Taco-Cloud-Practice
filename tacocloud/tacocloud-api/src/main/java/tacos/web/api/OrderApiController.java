@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import javax.validation.Valid;
 
 import reactor.core.publisher.Flux;
@@ -74,45 +75,41 @@ public class OrderApiController {
   }
 
   // TC-04 — PATCH de órdenes con lista blanca y sin ZIP mutante
-  @PatchMapping (path="/{orderId}", consumes="application/json")
+  @PatchMapping(path="/{orderId}", consumes="application/json")
   public Mono<ResponseEntity<TacoOrder>> patchOrder(
-        @PathVariable("orderId") String orderId, 
-        @Valid @RequestBody OrderPatchDTO patch,
-        Mono<Principal> mono){
+          @PathVariable("orderId") String orderId, 
+          @Valid @RequestBody OrderPatchDTO patch, 
+          Principal principal) {
+    
+    if(patch.getId() != null && !orderId.equals(patch.getId()))
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order ID in path and request body do not match")); // Status: 400
 
-    if(patch.getId() != null && !orderId.equals(patch.getId())) {
-      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order ID in path and request body do not match")); //Status: 400
-    }
+    // User resolution logic, get the current user from Principal or ReactiveSecurityContextHolder
+    Mono<String> userM = (principal != null && principal.getName() != null)
+        ? Mono.just(principal.getName())
+        : ReactiveSecurityContextHolder.getContext()
+            .filter(ctx -> ctx.getAuthentication() != null && ctx.getAuthentication().getName() != null)
+            .map(ctx -> ctx.getAuthentication().getName())
+            .defaultIfEmpty("anonymousUser");
 
-    return mono
-      .map(Principal::getName)
-      .defaultIfEmpty("anonymousUser")
-      .flatMap(user -> repo.findById(orderId)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden no encontrada"))) //Status: 404
+    return userM.flatMap(user -> repo.findById(orderId)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"))) // Status: 404
         .flatMap(order -> {
           boolean isOwner = order.getUser() != null && user.equals(order.getUser().getUsername());
-          boolean isAdmin = user.equals("admin");
-            
-          if (!isOwner && !isAdmin) {
-            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to modify this order")); //Status: 403
-          }
+          boolean isAdmin = "admin".equals(user);
+          if (!isOwner && !isAdmin) 
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to modify this order")); // Status: 403
+          
+          if (patch.getDeliveryName() != null) order.setDeliveryName(patch.getDeliveryName());
+          if (patch.getDeliveryStreet() != null) order.setDeliveryStreet(patch.getDeliveryStreet());
+          if (patch.getDeliveryCity() != null) order.setDeliveryCity(patch.getDeliveryCity());
+          if (patch.getDeliveryState() != null) order.setDeliveryState(patch.getDeliveryState());
+          if (patch.getDeliveryZip() != null) order.setDeliveryZip(patch.getDeliveryZip());
 
-          if (patch.getDeliveryName() != null) {
-            order.setDeliveryName(patch.getDeliveryName());
-          }
-          if (patch.getDeliveryStreet() != null) {
-            order.setDeliveryStreet(patch.getDeliveryStreet());
-          }
-          if (patch.getDeliveryCity() != null) {
-            order.setDeliveryCity(patch.getDeliveryCity());
-          }
-          if (patch.getDeliveryZip() != null) {
-            order.setDeliveryZip(patch.getDeliveryZip());
-          }
           return repo.save(order);
         })
-      )
-      .map(savedOrder -> ResponseEntity.ok(savedOrder)); //Status: 200
+        .map(ResponseEntity::ok) // Status: 200
+    );
   }
 
   // @PatchMapping(path="/{orderId}", consumes="application/json")
@@ -152,38 +149,44 @@ public class OrderApiController {
 
   // TC-05 — PUT y DELETE de órdenes con identidad consistente
   @PutMapping(path="/{orderId}", consumes="application/json")
-  public Mono<ResponseEntity<TacoOrder>> putOrder(@PathVariable("orderId") String orderId, @Valid @RequestBody OrderPutDTO order, Mono<Principal> mono) {
-    if (order.getId() != null && !orderId.equals(order.getId())) {
-      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order ID in path and request body do not match")); //Status: 400
-    }
+  public Mono<ResponseEntity<TacoOrder>> putOrder(
+          @PathVariable("orderId") String orderId, 
+          @Valid @RequestBody OrderPutDTO update, 
+          Principal principal) {
     
-    return mono
-      .map(Principal::getName)
-      .defaultIfEmpty("anonymousUser")
-      .flatMap(user -> repo.findById(orderId)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"))) //Status: 404
-        .flatMap(orderF -> {
+    if (update.getId() != null && !orderId.equals(update.getId()))
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order ID in path and request body do not match")); // Status: 400
 
-          boolean isOwner = orderF.getUser() != null && user.equals(orderF.getUser().getUsername());
-          boolean isAdmin = user.equals("admin");
-            
+    // User resolution logic, get the current user from Principal or ReactiveSecurityContextHolder
+    Mono<String> userM = (principal != null && principal.getName() != null)
+        ? Mono.just(principal.getName())
+        : ReactiveSecurityContextHolder.getContext()
+            .filter(ctx -> ctx.getAuthentication() != null && ctx.getAuthentication().getName() != null)
+            .map(ctx -> ctx.getAuthentication().getName())
+            .defaultIfEmpty("anonymousUser");
+
+    return userM.flatMap(user -> repo.findById(orderId)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"))) // Status: 404
+        .flatMap(order -> {
+          boolean isOwner = order.getUser() != null && user.equals(order.getUser().getUsername());
+          boolean isAdmin = "admin".equals(user);
+          
           if (!isOwner && !isAdmin)
-            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to modify this order")); //Status: 403
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to modify this order")); // Status: 403
 
-          orderF.setDeliveryName(order.getDeliveryName());
-          orderF.setDeliveryStreet(order.getDeliveryStreet());
-          orderF.setDeliveryCity(order.getDeliveryCity());
-          orderF.setDeliveryState(order.getDeliveryState());
-          orderF.setDeliveryZip(order.getDeliveryZip());
+          order.setDeliveryName(update.getDeliveryName());
+          order.setDeliveryStreet(update.getDeliveryStreet());
+          order.setDeliveryCity(update.getDeliveryCity());
+          order.setDeliveryState(update.getDeliveryState());
+          order.setDeliveryZip(update.getDeliveryZip());
+          if (update.getTacos() != null)
+            order.setTacos(update.getTacos());
 
-          if(order.getTacos() != null)
-            orderF.setTacos(order.getTacos());
-          return repo.save(orderF);
+          return repo.save(order);
         })
-      )
-      .map(savedOrder -> ResponseEntity.ok(savedOrder)); //Status: 200
+        .map(ResponseEntity::ok) // Status: 200
+    );
   }
-  
 
   // @PutMapping(path="/{orderId}", consumes="application/json")
   // public Mono<TacoOrder> putOrder(@RequestBody Mono<TacoOrder> order) {
@@ -191,22 +194,31 @@ public class OrderApiController {
   // }
 
   @DeleteMapping(path="/{orderId}")
-  public Mono<ResponseEntity<Void>> deleteOrder(@PathVariable("orderId") String orderId, Mono<Principal> mono) {
-    return mono
-      .map(Principal::getName)
-      .defaultIfEmpty("anonymousUser")
-      .flatMap(user -> repo.findById(orderId)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"))) //Status: 404
+  public Mono<ResponseEntity<Void>> deleteOrder(
+          @PathVariable("orderId") String orderId, 
+          Principal principal) {
+    
+    // User resolution logic, get the current user from Principal or ReactiveSecurityContextHolder
+    Mono<String> userM = (principal != null && principal.getName() != null)
+        ? Mono.just(principal.getName())
+        : ReactiveSecurityContextHolder.getContext()
+            .filter(ctx -> ctx.getAuthentication() != null && ctx.getAuthentication().getName() != null)
+            .map(ctx -> ctx.getAuthentication().getName())
+            .defaultIfEmpty("anonymousUser");
+
+    return userM.flatMap(user -> repo.findById(orderId)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"))) // Status: 404
         .flatMap(order -> {
           boolean isOwner = order.getUser() != null && user.equals(order.getUser().getUsername());
-          boolean isAdmin = user.equals("admin");
-            
+          boolean isAdmin = "admin".equals(user);
+          
           if (!isOwner && !isAdmin)
-            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to delete this order")); //Status: 403
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to delete this order")); // Status: 403
 
-          return repo.deleteById(orderId).then(Mono.just(ResponseEntity.noContent().build())); //Status: 204
+          return repo.deleteById(orderId);
         })
-      );
+        .thenReturn(ResponseEntity.noContent().<Void>build()) // Status: 204
+    );
   }
 
   // @DeleteMapping("/{orderId}")

@@ -9,6 +9,7 @@ public class OrderPatchDTO {
     private String deliveryName;
     private String deliveryStreet;
     private String deliveryCity;
+    private String deliveryState;
     private String deliveryZip;
     
     public String getDeliveryName() {
@@ -28,6 +29,12 @@ public class OrderPatchDTO {
     }
     public void setDeliveryCity(String deliveryCity) {
         this.deliveryCity = deliveryCity;
+    }
+    public String getDeliveryState() {
+        return deliveryState;
+    }
+    public void setDeliveryState(String deliveryState) {
+        this.deliveryState = deliveryState;
     }
     public String getDeliveryZip() {
         return deliveryZip;
