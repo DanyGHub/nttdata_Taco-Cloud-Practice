@@ -1,5 +1,6 @@
 package tacos.web.api;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -23,8 +24,11 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.web.api.dto.OrderCreateRequest;
+import tacos.web.api.dto.OrderMapper;
 import tacos.web.api.dto.OrderPatchDTO;
 import tacos.web.api.dto.OrderPutDTO;
+import tacos.web.api.dto.OrderResponse;
 import java.security.Principal;
 
 @RestController
@@ -36,18 +40,28 @@ public class OrderApiController {
   private OrderRepository repo;
   private OrderMessagingService orderMessages;
   private EmailOrderService emailOrderService;
+  private OrderMapper orderMapper;
+
+  @Autowired
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper) {
+    this.repo = repo;
+    this.orderMessages = orderMessages;
+    this.emailOrderService = emailOrderService;
+    this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
+  }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService) {
-    this.repo = repo;
-    this.orderMessages = orderMessages;
-    this.emailOrderService = emailOrderService;
+    this(repo, orderMessages, emailOrderService, new OrderMapper());
   }
 
   @GetMapping(produces="application/json")
-  public Flux<TacoOrder> allOrders() {
-    return repo.findAll();
+  public Flux<OrderResponse> allOrders() {
+    return repo.findAll().map(orderMapper::toResponse);
   }
 
 //  @PostMapping(consumes="application/json")
@@ -60,18 +74,20 @@ public class OrderApiController {
 
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<TacoOrder> postOrder(@RequestBody TacoOrder order) {
+  public Mono<OrderResponse> postOrder(@RequestBody OrderCreateRequest request) {
+    TacoOrder order = orderMapper.toDomain(request);
     orderMessages.sendOrder(order);
-    return repo.save(order);
+    return repo.save(order).map(orderMapper::toResponse);
   }
 
   // TC-07: Una sola suscripción para guardar y publicar (save-then-send)
   @PostMapping(path="fromEmail", consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<TacoOrder> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
+  public Mono<OrderResponse> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
     return emailOrderService.convertEmailOrderToDomainOrder(emailOrder)
         .flatMap(repo::save)                  // Garantiza consistencia de la base de datos antes de enviar el mensaje
-        .doOnNext(orderMessages::sendOrder);  // Implementar Outbox para TC-29
+        .doOnNext(orderMessages::sendOrder)  // Implementar Outbox para TC-29
+        .map(orderMapper::toResponse);
   }
 
   // @PostMapping(path="fromEmail", consumes="application/json")
@@ -85,7 +101,7 @@ public class OrderApiController {
 
   // TC-04 — PATCH de órdenes con lista blanca y sin ZIP mutante
   @PatchMapping(path="/{orderId}", consumes="application/json")
-  public Mono<ResponseEntity<TacoOrder>> patchOrder(
+  public Mono<ResponseEntity<OrderResponse>> patchOrder(
           @PathVariable("orderId") String orderId, 
           @Valid @RequestBody OrderPatchDTO patch, 
           Principal principal) {
@@ -117,6 +133,7 @@ public class OrderApiController {
 
           return repo.save(order);
         })
+        .map(orderMapper::toResponse)
         .map(ResponseEntity::ok) // Status: 200
     );
   }
@@ -158,7 +175,7 @@ public class OrderApiController {
 
   // TC-05 — PUT y DELETE de órdenes con identidad consistente
   @PutMapping(path="/{orderId}", consumes="application/json")
-  public Mono<ResponseEntity<TacoOrder>> putOrder(
+  public Mono<ResponseEntity<OrderResponse>> putOrder(
           @PathVariable("orderId") String orderId, 
           @Valid @RequestBody OrderPutDTO update, 
           Principal principal) {
@@ -193,6 +210,7 @@ public class OrderApiController {
 
           return repo.save(order);
         })
+        .map(orderMapper::toResponse)
         .map(ResponseEntity::ok) // Status: 200
     );
   }

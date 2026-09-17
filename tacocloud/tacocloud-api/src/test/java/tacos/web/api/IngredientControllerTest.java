@@ -19,6 +19,8 @@ import reactor.test.StepVerifier;
 import tacos.Ingredient;
 import tacos.Ingredient.Type;
 import tacos.data.IngredientRepository;
+import tacos.web.api.dto.IngredientRequest;
+import tacos.web.api.dto.IngredientResponse;
 
 public class IngredientControllerTest {
 
@@ -107,12 +109,13 @@ public class IngredientControllerTest {
     IngredientController controller = new IngredientController(repo);
 
     Ingredient existing = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
-    Ingredient updateData = new Ingredient("FLTO", "Flour Tortilla Premium", Type.WRAP);
+    IngredientRequest updateData = new IngredientRequest("FLTO", "Flour Tortilla Premium", Type.WRAP);
+    Ingredient savedIngredient = new Ingredient("FLTO", "Flour Tortilla Premium", Type.WRAP);
 
     when(repo.findById("FLTO")).thenReturn(Mono.just(existing));
-    when(repo.save(updateData)).thenReturn(Mono.just(updateData));
+    when(repo.save(any(Ingredient.class))).thenReturn(Mono.just(savedIngredient));
 
-    Mono<ResponseEntity<Ingredient>> resultMono = controller.updateIngredient("FLTO", updateData);
+    Mono<ResponseEntity<IngredientResponse>> resultMono = controller.updateIngredient("FLTO", updateData);
 
     verify(repo, never()).save(any());  // Lazy execution: Before subscribing, save() should not have been called
 
@@ -121,18 +124,18 @@ public class IngredientControllerTest {
             "Flour Tortilla Premium".equals(response.getBody().getName()))
         .verifyComplete();
 
-    verify(repo, times(1)).save(updateData);
+    verify(repo, times(1)).save(any(Ingredient.class));
   }
 
   @Test
   public void stepVerifier_shouldEmitErrorWhenIngredientNotFoundOnUpdate() {
     IngredientRepository repo = Mockito.mock(IngredientRepository.class);
     IngredientController controller = new IngredientController(repo);
-    Ingredient updateData = new Ingredient("MISSING", "Missing Ingredient", Type.WRAP);
+    IngredientRequest updateData = new IngredientRequest("MISSING", "Missing Ingredient", Type.WRAP);
 
     when(repo.findById("MISSING")).thenReturn(Mono.empty());
 
-    Mono<ResponseEntity<Ingredient>> resultMono = controller.updateIngredient("MISSING", updateData);
+    Mono<ResponseEntity<IngredientResponse>> resultMono = controller.updateIngredient("MISSING", updateData);
 
     StepVerifier.create(resultMono)
         .expectErrorMatches(throwable -> throwable instanceof ResponseStatusException &&

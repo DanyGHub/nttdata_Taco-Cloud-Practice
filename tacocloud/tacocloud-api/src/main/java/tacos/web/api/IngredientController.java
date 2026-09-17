@@ -25,6 +25,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.Ingredient;
 import tacos.data.IngredientRepository;
+import tacos.web.api.dto.IngredientMapper;
+import tacos.web.api.dto.IngredientRequest;
+import tacos.web.api.dto.IngredientResponse;
 
 @RestController
 @RequestMapping(path="/api/ingredients", produces="application/json")
@@ -32,33 +35,51 @@ import tacos.data.IngredientRepository;
 public class IngredientController {
 
   private IngredientRepository repo;
+  private IngredientMapper mapper;
 
   @Autowired
-  public IngredientController(IngredientRepository repo) {
+  public IngredientController(IngredientRepository repo, IngredientMapper mapper) {
     this.repo = repo;
+    this.mapper = mapper != null ? mapper : new IngredientMapper();
+  }
+
+  public IngredientController(IngredientRepository repo) {
+    this(repo, new IngredientMapper());
   }
 
   @GetMapping
-  public Flux<Ingredient> allIngredients() {
-    return repo.findAll();
+  public Flux<IngredientResponse> allIngredients() {
+    return repo.findAll().map(mapper::toResponse);
   }
 
   @GetMapping("/{id}")
-  public Mono<Ingredient> byId(@PathVariable String id) {
-    return repo.findById(id);
+  public Mono<IngredientResponse> byId(@PathVariable String id) {
+    return repo.findById(id).map(mapper::toResponse);
   }
 
   // TC-01 — Actualizar un ingrediente sin perder el publisher
   @PutMapping("/{id}")
-  public Mono<ResponseEntity<Ingredient>> updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient) {
-    if (ingredient.getId() == null || !ingredient.getId().equals(id))
+  public Mono<ResponseEntity<IngredientResponse>> updateIngredient(@PathVariable String id, @RequestBody IngredientRequest ingredient) {
+    if (ingredient == null || ingredient.getId() == null || !ingredient.getId().equals(id))
       return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ingredient's ID doesn't match the ID in the path.")); // Status 400
 
     return repo.findById(id)
         .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Ingredient Not Found"))) // Status 404
-        .flatMap(existing -> repo.save(ingredient))
-        .map(saved -> ResponseEntity.ok(saved));    // Status 200
+        .flatMap(existing -> repo.save(mapper.toDomain(ingredient)))
+        .map(saved -> ResponseEntity.ok(mapper.toResponse(saved)));    // Status 200
   }
+
+  /*
+  // Llamada directa TC-01 (Mantenida comentada para referencia o regresión)
+  public Mono<ResponseEntity<Ingredient>> updateIngredient(String id, Ingredient ingredient) {
+    if (ingredient == null || ingredient.getId() == null || !ingredient.getId().equals(id))
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ingredient's ID doesn't match the ID in the path."));
+
+    IngredientRequest req = new IngredientRequest(ingredient.getId(), ingredient.getName(), ingredient.getType());
+    return updateIngredient(id, req)
+        .map(resp -> ResponseEntity.status(resp.getStatusCode()).headers(resp.getHeaders()).body(mapper.toDomain(resp.getBody())));
+  }
+  */
 
   /*
   @PutMapping("/{id}")
@@ -72,7 +93,7 @@ public class IngredientController {
 
   // TC-03 Construir Location sin localhost ni rutas rotas
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@RequestBody(required = false) Ingredient ingredient) {
+  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@RequestBody(required = false) IngredientRequest ingredient) {
     if (ingredient == null 
         || ingredient.getId() == null || ingredient.getId().trim().isEmpty()
         || ingredient.getName() == null || ingredient.getName().trim().isEmpty()
@@ -80,14 +101,29 @@ public class IngredientController {
       return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid ingredient: id, name, and type are required"));  // Status 400
     }
 
-    return repo.save(ingredient)
+    return repo.save(mapper.toDomain(ingredient))
         .map(saved -> {
           URI location = UriComponentsBuilder.fromPath("/api/ingredients/{id}")
               .buildAndExpand(saved.getId())
               .toUri();
-          return ResponseEntity.created(location).body(saved);
+          return ResponseEntity.created(location).body(mapper.toResponse(saved));
         });
   }
+
+  /*
+  // Llamada directa TC-03 (Mantenida comentada para referencia o regresión)
+  public Mono<ResponseEntity<Ingredient>> postIngredient(Ingredient ingredient) {
+    if (ingredient == null 
+        || ingredient.getId() == null || ingredient.getId().trim().isEmpty()
+        || ingredient.getName() == null || ingredient.getName().trim().isEmpty()
+        || ingredient.getType() == null) {
+      return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid ingredient: id, name, and type are required"));
+    }
+    IngredientRequest req = new IngredientRequest(ingredient.getId(), ingredient.getName(), ingredient.getType());
+    return postIngredient(req)
+        .map(resp -> ResponseEntity.status(resp.getStatusCode()).headers(resp.getHeaders()).body(mapper.toDomain(resp.getBody())));
+  }
+  */
 
   /*
   @PostMapping
