@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -141,8 +143,53 @@ public class MvcApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler({DuplicateKeyException.class, DataIntegrityViolationException.class})
+  public ResponseEntity<ApiProblem> handleDuplicateKeyException(Exception ex, HttpServletRequest request) {
+    String instance = request != null ? request.getRequestURI() : "/";
+    log.warn("Database unique constraint violation at {}: {}", instance, ex.getMessage());
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.CONFLICT,
+        "RESOURCE_CONFLICT",
+        "Resource Conflict",
+        "A resource with the specified unique attributes already exists.",
+        instance
+    );
+    problem.setType(URI.create("urn:problem-type:resource-conflict"));
+
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(Throwable.class)
   public ResponseEntity<ApiProblem> handleGeneralThrowable(Throwable ex, HttpServletRequest request) {
+    // Desenvolver excepciones envueltas (ej. NestedServletException, CompletionException, ExecutionException)
+    Throwable current = ex;
+    while (current != null) {
+      if (current instanceof ResponseStatusException) {
+        return handleResponseStatusException((ResponseStatusException) current, request);
+      }
+      if (current instanceof ResourceConflictException) {
+        return handleResourceConflictException((ResourceConflictException) current, request);
+      }
+      if (current instanceof BusinessRuleException) {
+        return handleBusinessRuleException((BusinessRuleException) current, request);
+      }
+      if (current instanceof MethodArgumentNotValidException) {
+        return handleValidationException((MethodArgumentNotValidException) current, request);
+      }
+      if (current instanceof BindException) {
+        return handleValidationException((BindException) current, request);
+      }
+      if (current instanceof DuplicateKeyException || current instanceof DataIntegrityViolationException) {
+        return handleDuplicateKeyException((Exception) current, request);
+      }
+      if (current.getMessage() != null && (current.getMessage().contains("duplicate key") || current.getMessage().contains("E11000"))) {
+        return handleDuplicateKeyException(new RuntimeException(current.getMessage(), current), request);
+      }
+      current = current.getCause();
+    }
+
     String instance = request != null ? request.getRequestURI() : "/";
     log.error("Unhandled internal server error at {}: {}", instance, ex.getMessage(), ex);
 

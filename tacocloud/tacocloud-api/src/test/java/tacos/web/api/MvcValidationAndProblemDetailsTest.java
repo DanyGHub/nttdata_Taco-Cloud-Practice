@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -58,6 +59,24 @@ public class MvcValidationAndProblemDetailsTest {
     @GetMapping("/driver-failure")
     public String triggerDriverFailure() {
       throw new RuntimeException("com.mongodb.MongoTimeoutException: Timed out after 30000 ms while waiting for server [localhost:27017]");
+    }
+
+    @GetMapping("/async-conflict")
+    public Mono<String> triggerAsyncConflict() {
+      return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Username taken"));
+    }
+
+    @GetMapping("/duplicate-key")
+    public String triggerDuplicateKey() {
+      throw new DuplicateKeyException("E11000 duplicate key error collection: tacocloud.user index: username dup key");
+    }
+
+    @GetMapping("/wrapped-conflict")
+    public String triggerWrappedConflict() throws Exception {
+      throw new org.springframework.web.util.NestedServletException(
+          "Request processing failed",
+          new ResponseStatusException(HttpStatus.CONFLICT, "Username taken")
+      );
     }
   }
 
@@ -131,6 +150,30 @@ public class MvcValidationAndProblemDetailsTest {
         .andExpect(jsonPath("$.code").value("ORDER_ALREADY_PROCESSED"))
         .andExpect(jsonPath("$.title").value("Resource Conflict"))
         .andExpect(jsonPath("$.instance").value("/api/mvc-test-errors/conflict"));
+  }
+
+  @Test
+  @DisplayName("Spring MVC: DuplicateKeyException de base de datos retorna 409 Problem Details")
+  public void mvc_duplicateKeyException_shouldReturnProblemDetails409() throws Exception {
+    mockMvc.perform(get("/api/mvc-test-errors/duplicate-key"))
+        .andExpect(status().isConflict())
+        .andExpect(content().contentType("application/problem+json"))
+        .andExpect(jsonPath("$.status").value(409))
+        .andExpect(jsonPath("$.code").value("RESOURCE_CONFLICT"))
+        .andExpect(jsonPath("$.title").value("Resource Conflict"))
+        .andExpect(jsonPath("$.instance").value("/api/mvc-test-errors/duplicate-key"));
+  }
+
+  @Test
+  @DisplayName("Spring MVC: Excepción anidada (NestedServletException) desenvuelve a 409 Problem Details")
+  public void mvc_nestedServletException_shouldUnwrapToProblemDetails409() throws Exception {
+    mockMvc.perform(get("/api/mvc-test-errors/wrapped-conflict"))
+        .andExpect(status().isConflict())
+        .andExpect(content().contentType("application/problem+json"))
+        .andExpect(jsonPath("$.status").value(409))
+        .andExpect(jsonPath("$.code").value("RESOURCE_CONFLICT"))
+        .andExpect(jsonPath("$.detail").value("Username taken"))
+        .andExpect(jsonPath("$.instance").value("/api/mvc-test-errors/wrapped-conflict"));
   }
 
   @Test

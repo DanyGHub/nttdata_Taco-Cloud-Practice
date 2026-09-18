@@ -25,6 +25,7 @@ public class User implements UserDetails {
   @Id
   private String id;
   
+  @org.springframework.data.mongodb.core.index.Indexed(unique = true)
   private final String username;
   
   private final String password;
@@ -34,6 +35,7 @@ public class User implements UserDetails {
   private final String state;
   private final String zip;
   private final String phoneNumber;
+  @org.springframework.data.mongodb.core.index.Indexed(unique = true)
   private final String email;
   
   @Override
