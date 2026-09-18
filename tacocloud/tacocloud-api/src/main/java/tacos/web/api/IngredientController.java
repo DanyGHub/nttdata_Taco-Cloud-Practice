@@ -59,7 +59,7 @@ public class IngredientController {
 
   // TC-01 — Actualizar un ingrediente sin perder el publisher
   @PutMapping("/{id}")
-  public Mono<ResponseEntity<IngredientResponse>> updateIngredient(@PathVariable String id, @RequestBody IngredientRequest ingredient) {
+  public Mono<ResponseEntity<IngredientResponse>> updateIngredient(@PathVariable String id, @Valid @RequestBody IngredientRequest ingredient) {
     if (ingredient == null || ingredient.getId() == null || !ingredient.getId().equals(id))
       return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ingredient's ID doesn't match the ID in the path.")); // Status 400
 
@@ -93,7 +93,7 @@ public class IngredientController {
 
   // TC-03 Construir Location sin localhost ni rutas rotas
   @PostMapping
-  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@RequestBody(required = false) IngredientRequest ingredient) {
+  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@Valid @RequestBody(required = false) IngredientRequest ingredient) {
     if (ingredient == null 
         || ingredient.getId() == null || ingredient.getId().trim().isEmpty()
         || ingredient.getName() == null || ingredient.getName().trim().isEmpty()

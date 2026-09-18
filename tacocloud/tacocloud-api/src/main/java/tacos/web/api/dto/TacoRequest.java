@@ -3,6 +3,11 @@ package tacos.web.api.dto;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.Size;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,7 +19,12 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TacoRequest {
 
+  @NotBlank(message = "Taco name is required")
+  @Size(min = 5, message = "Name must be at least 5 characters long")
   private String name;
+
+  @NotEmpty(message = "You must choose at least 1 ingredient")
+  @Valid
   private List<IngredientRequest> ingredients = new ArrayList<>();
 
 }

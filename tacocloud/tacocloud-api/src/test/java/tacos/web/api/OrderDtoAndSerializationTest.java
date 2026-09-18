@@ -245,7 +245,7 @@ public class OrderDtoAndSerializationTest {
         + "\"ccNumber\":\"4111111111111111\","
         + "\"ccExpiration\":\"08/29\","
         + "\"ccCVV\":\"123\","
-        + "\"tacos\":[]"
+        + "\"tacos\":[{\"name\":\"Carnitas Taco\",\"ingredients\":[{\"id\":\"FLTO\",\"name\":\"Flour Tortilla\",\"type\":\"WRAP\"}]}]"
         + "}";
 
     client.post()

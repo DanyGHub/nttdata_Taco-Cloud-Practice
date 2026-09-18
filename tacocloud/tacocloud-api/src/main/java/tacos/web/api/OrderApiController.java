@@ -64,6 +64,14 @@ public class OrderApiController {
     return repo.findAll().map(orderMapper::toResponse);
   }
 
+  @GetMapping(path="/{orderId}", produces="application/json")
+  public Mono<ResponseEntity<OrderResponse>> getOrderById(@PathVariable("orderId") String orderId) {
+    return repo.findById(orderId)
+        .map(orderMapper::toResponse)
+        .map(ResponseEntity::ok)
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found")));
+  }
+
 //  @PostMapping(consumes="application/json")
 //  @ResponseStatus(HttpStatus.CREATED)
 //  public Mono<Order> postOrder(@RequestBody Mono<Order> order) {
@@ -74,10 +82,11 @@ public class OrderApiController {
 
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<OrderResponse> postOrder(@RequestBody OrderCreateRequest request) {
+  public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request) {
     TacoOrder order = orderMapper.toDomain(request);
-    orderMessages.sendOrder(order);
-    return repo.save(order).map(orderMapper::toResponse);
+    return repo.save(order)
+        .doOnNext(orderMessages::sendOrder)
+        .map(orderMapper::toResponse);
   }
 
   // TC-07: Una sola suscripción para guardar y publicar (save-then-send)
