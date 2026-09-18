@@ -40,6 +40,10 @@ spring:
 # end::springBootAdminUri[]
         username: admin
         password: 53cr3t
+        instance:
+          metadata:
+            user.name: admin
+            user.password: admin
 # end::springBootAdminCreds[]
 
 # The values given here are actually the default values. But they are explicitly
@@ -72,7 +76,7 @@ management:
 #tag::healthShowDetails[]
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
 #end::healthShowDetails[]
 #tag::infoGitModeFull[]
   info:

@@ -37,14 +37,45 @@ public class DevelopmentConfig {
         Ingredient salsa = saveAnIngredient("SLSA", "Salsa", Type.SAUCE);
         Ingredient sourCream = saveAnIngredient("SRCR", "Sour Cream", Type.SAUCE);
         
-//        UserUDT u = new UserUDT(username, fullname, phoneNumber)
-        
-        userRepo.save(new User("habuma", encoder.encode("password"), 
-              "Craig Walls", "123 North Street", "Cross Roads", "TX", 
-              "76227", "123-123-1234", "craig@habuma.com"))
-          .subscribe(user -> {
-              paymentMethodRepo.save(new PaymentMethod(user, "4111111111111111", "321", "10/25")).subscribe();
-          });        
+        userRepo.findByUsername("habuma")
+            .flatMap(existing -> {
+              if (existing.getRoles() == null || existing.getRoles().isEmpty()) {
+                existing.setRoles(Arrays.asList("ROLE_USER"));
+                return userRepo.save(existing);
+              }
+              return reactor.core.publisher.Mono.just(existing);
+            })
+            .switchIfEmpty(reactor.core.publisher.Mono.defer(() -> userRepo.save(new User("habuma", encoder.encode("password"), 
+                  "Craig Walls", "123 North Street", "Cross Roads", "TX", 
+                  "76227", "123-123-1234", "craig@habuma.com", Arrays.asList("ROLE_USER")))))
+            .flatMap(user -> paymentMethodRepo.save(new PaymentMethod(user, "4111111111111111", "321", "10/25")))
+            .block();
+
+        userRepo.findByUsername("admin")
+            .flatMap(existing -> {
+              if (existing.getRoles() == null || !existing.getRoles().contains("ROLE_ADMIN")) {
+                existing.setRoles(Arrays.asList("ROLE_ADMIN"));
+                return userRepo.save(existing);
+              }
+              return reactor.core.publisher.Mono.just(existing);
+            })
+            .switchIfEmpty(reactor.core.publisher.Mono.defer(() -> userRepo.save(new User("admin", encoder.encode("admin"),
+                  "Admin User", "Admin Street 1", "Capital", "AGS",
+                  "20000", "555-010-0001", "admin@tacocloud.com", Arrays.asList("ROLE_ADMIN")))))
+            .block();
+
+        userRepo.findByUsername("kitchen")
+            .flatMap(existing -> {
+              if (existing.getRoles() == null || !existing.getRoles().contains("ROLE_KITCHEN")) {
+                existing.setRoles(Arrays.asList("ROLE_KITCHEN"));
+                return userRepo.save(existing);
+              }
+              return reactor.core.publisher.Mono.just(existing);
+            })
+            .switchIfEmpty(reactor.core.publisher.Mono.defer(() -> userRepo.save(new User("kitchen", encoder.encode("kitchen"),
+                  "Kitchen Staff", "Kitchen Avenue 2", "Capital", "AGS",
+                  "20000", "555-010-0002", "kitchen@tacocloud.com", Arrays.asList("ROLE_KITCHEN")))))
+            .block();        
         
         Taco taco1 = new Taco();
         taco1.setId("TACO1");

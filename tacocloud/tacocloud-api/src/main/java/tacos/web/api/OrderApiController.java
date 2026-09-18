@@ -31,6 +31,10 @@ import tacos.web.api.dto.OrderPutDTO;
 import tacos.web.api.dto.OrderResponse;
 import java.security.Principal;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.Authentication;
+import tacos.data.UserRepository;
+
 @RestController
 @RequestMapping(path="/api/orders",
                 produces="application/json")
@@ -41,50 +45,88 @@ public class OrderApiController {
   private OrderMessagingService orderMessages;
   private EmailOrderService emailOrderService;
   private OrderMapper orderMapper;
+  private UserRepository userRepo;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService,
-                            OrderMapper orderMapper) {
+                            OrderMapper orderMapper,
+                            UserRepository userRepo) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
     this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
+    this.userRepo = userRepo;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper) {
+    this(repo, orderMessages, emailOrderService, orderMapper, null);
   }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService) {
-    this(repo, orderMessages, emailOrderService, new OrderMapper());
+    this(repo, orderMessages, emailOrderService, new OrderMapper(), null);
   }
 
   @GetMapping(produces="application/json")
-  public Flux<OrderResponse> allOrders() {
-    return repo.findAll().map(orderMapper::toResponse);
+  public Flux<OrderResponse> allOrders(Authentication authentication) {
+    boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    if (isAdmin) {
+      return repo.findAll().map(orderMapper::toResponse);
+    }
+
+    String username = authentication != null ? authentication.getName() : null;
+    if (username == null || userRepo == null) {
+      return repo.findAll().map(orderMapper::toResponse);
+    }
+
+    return userRepo.findByUsername(username)
+        .flatMapMany(user -> repo.findByUserOrderByPlacedAtDesc(user, PageRequest.of(0, 50)))
+        .map(orderMapper::toResponse);
   }
 
   @GetMapping(path="/{orderId}", produces="application/json")
-  public Mono<ResponseEntity<OrderResponse>> getOrderById(@PathVariable("orderId") String orderId) {
+  public Mono<ResponseEntity<OrderResponse>> getOrderById(@PathVariable("orderId") String orderId, Authentication authentication) {
     return repo.findById(orderId)
-        .map(orderMapper::toResponse)
-        .map(ResponseEntity::ok)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found")));
-  }
+        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found")))
+        .flatMap(order -> {
+          boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+              .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+          String currentUsername = authentication != null ? authentication.getName() : null;
+          boolean isOwner = order.getUser() != null && order.getUser().getUsername() != null &&
+              order.getUser().getUsername().equals(currentUsername);
 
-//  @PostMapping(consumes="application/json")
-//  @ResponseStatus(HttpStatus.CREATED)
-//  public Mono<Order> postOrder(@RequestBody Mono<Order> order) {
-//    order.subscribe(orderMessages::sendOrder); // TODO: not ideal...work into reactive flow below
-//    return order
-//        .flatMap(repo::save);
-//  }
+          if (!isAdmin && !isOwner) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to access this order"));
+          }
+          return Mono.just(ResponseEntity.ok(orderMapper.toResponse(order)));
+        });
+  }
 
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request) {
+  public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request, Authentication authentication) {
     TacoOrder order = orderMapper.toDomain(request);
-    return repo.save(order)
+    Mono<TacoOrder> orderWithUser;
+    if (authentication != null && authentication.getName() != null && userRepo != null) {
+      orderWithUser = userRepo.findByUsername(authentication.getName())
+          .map(u -> {
+            order.setUser(u);
+            return order;
+          })
+          .defaultIfEmpty(order);
+    } else {
+      orderWithUser = Mono.just(order);
+    }
+
+    return orderWithUser
+        .flatMap(repo::save)
         .doOnNext(orderMessages::sendOrder)
         .map(orderMapper::toResponse);
   }
