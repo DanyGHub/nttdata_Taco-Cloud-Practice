@@ -93,6 +93,23 @@ public class ApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+  public ResponseEntity<ApiProblem> handleOptimisticLockingFailureException(org.springframework.dao.OptimisticLockingFailureException ex, ServerWebExchange exchange) {
+    String instance = getPath(exchange);
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.CONFLICT,
+        "OPTIMISTIC_LOCK_CONFLICT",
+        "Resource Conflict",
+        ex.getMessage(),
+        instance
+    );
+    problem.setType(URI.create("urn:problem-type:resource-conflict"));
+
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(ResponseStatusException.class)
   public ResponseEntity<ApiProblem> handleResponseStatusException(ResponseStatusException ex, ServerWebExchange exchange) {
     HttpStatus status = ex.getStatus();

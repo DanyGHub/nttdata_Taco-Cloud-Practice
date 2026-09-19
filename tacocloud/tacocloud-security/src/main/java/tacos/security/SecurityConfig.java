@@ -66,7 +66,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         // 6. Spring Data REST (/data-api/**)
         .antMatchers("/data-api/**").hasRole("ADMIN")
 
-        // 7. Mutaciones de ingredientes
+        // 7. Administración de ingredientes, catálogo, stock y endpoints administrativos
+        .antMatchers("/api/admin/**").hasRole("ADMIN")
         .antMatchers(HttpMethod.POST, "/api/ingredients/**").hasRole("ADMIN")
         .antMatchers(HttpMethod.PUT, "/api/ingredients/**").hasRole("ADMIN")
         .antMatchers(HttpMethod.PATCH, "/api/ingredients/**").hasRole("ADMIN")

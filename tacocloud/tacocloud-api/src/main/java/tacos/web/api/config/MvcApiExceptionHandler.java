@@ -112,6 +112,23 @@ public class MvcApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+  public ResponseEntity<ApiProblem> handleOptimisticLockingFailureException(org.springframework.dao.OptimisticLockingFailureException ex, HttpServletRequest request) {
+    String instance = request != null ? request.getRequestURI() : "/";
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.CONFLICT,
+        "OPTIMISTIC_LOCK_CONFLICT",
+        "Resource Conflict",
+        ex.getMessage(),
+        instance
+    );
+    problem.setType(URI.create("urn:problem-type:resource-conflict"));
+
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(ResponseStatusException.class)
   public ResponseEntity<ApiProblem> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest request) {
     HttpStatus status = ex.getStatus();

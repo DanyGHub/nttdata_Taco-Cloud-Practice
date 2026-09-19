@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -241,6 +242,62 @@ public class SecurityAuthorizationTest {
   public void dataRest_adminRole_shouldReturn200() throws Exception {
     mockMvc.perform(get("/data-api")
             .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
+  // 6. TC-13: Administración de Catálogo y Stock
+
+  @Test
+  @DisplayName("TC-13: Anónimo intentando modificar catálogo es rechazado con 401 Unauthorized")
+  public void adminCatalog_anonymous_shouldReturn401() throws Exception {
+    String payload = "{\"unitPrice\":1.99,\"available\":true}";
+    mockMvc.perform(patch("/api/admin/ingredients/FLTO/catalog")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("TC-13: USER intentando modificar catálogo es rechazado con 403 Forbidden")
+  public void adminCatalog_userRole_shouldReturn403() throws Exception {
+    String payload = "{\"unitPrice\":1.99,\"available\":true}";
+    mockMvc.perform(patch("/api/admin/ingredients/FLTO/catalog")
+            .with(user("habuma").roles("USER"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("TC-13: ADMIN puede modificar precio y disponibilidad en catálogo (200 OK)")
+  public void adminCatalog_adminRole_shouldReturn200() throws Exception {
+    String payload = "{\"unitPrice\":1.99,\"available\":true}";
+    mockMvc.perform(patch("/api/admin/ingredients/FLTO/catalog")
+            .with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-13: USER intentando ajustar stock es rechazado con 403 Forbidden")
+  public void adminStockAdjustment_userRole_shouldReturn403() throws Exception {
+    String payload = "{\"amount\":10,\"reason\":\"Restock\"}";
+    mockMvc.perform(post("/api/admin/ingredients/FLTO/stock-adjustments")
+            .with(user("habuma").roles("USER"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("TC-13: ADMIN puede ajustar existencias de stock (200 OK)")
+  public void adminStockAdjustment_adminRole_shouldReturn200() throws Exception {
+    String payload = "{\"amount\":10,\"reason\":\"Restock\"}";
+    mockMvc.perform(post("/api/admin/ingredients/FLTO/stock-adjustments")
+            .with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
         .andExpect(status().isOk());
   }
 }
