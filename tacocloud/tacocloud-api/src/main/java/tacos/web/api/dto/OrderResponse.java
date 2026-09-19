@@ -22,5 +22,7 @@ public class OrderResponse {
   private String deliveryZip;
   private List<TacoResponse> tacos = new ArrayList<>();
   private String username;
+  private String brand;
+  private String last4;
 
 }

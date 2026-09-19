@@ -35,9 +35,14 @@ public class OrderMapper {
     order.setDeliveryCity(request.getDeliveryCity());
     order.setDeliveryState(request.getDeliveryState());
     order.setDeliveryZip(request.getDeliveryZip());
-    order.setCcNumber(request.getCcNumber());
-    order.setCcExpiration(request.getCcExpiration());
-    order.setCcCVV(request.getCcCVV());
+    order.setPaymentMethodId(request.getPaymentMethodId());
+    order.setPaymentToken(request.getPaymentToken());
+    order.setBrand(request.getBrand());
+    if (request.getLast4() != null) {
+      order.setLast4(request.getLast4());
+    } else if (request.getCcNumber() != null && request.getCcNumber().length() >= 4) {
+      order.setLast4(request.getCcNumber().substring(request.getCcNumber().length() - 4));
+    }
 
     if (request.getTacos() != null) {
       for (TacoRequest tacoReq : request.getTacos()) {
@@ -73,6 +78,8 @@ public class OrderMapper {
     response.setDeliveryState(order.getDeliveryState());
     response.setDeliveryZip(order.getDeliveryZip());
     response.setUsername(order.getUser() != null ? order.getUser().getUsername() : null);
+    response.setBrand(order.getBrand());
+    response.setLast4(order.getLast4());
 
     if (order.getTacos() != null) {
       List<TacoResponse> tacoResponses = new ArrayList<>();

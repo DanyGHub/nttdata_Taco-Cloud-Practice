@@ -35,42 +35,63 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import tacos.data.UserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tacos.data.PaymentMethodRepository;
+import tacos.payment.PaymentGateway;
+
 @RestController
 @RequestMapping(path="/api/orders",
                 produces="application/json")
 @CrossOrigin(origins="http://localhost:8080")
 public class OrderApiController {
 
+  private static final Logger log = LoggerFactory.getLogger(OrderApiController.class);
+
   private OrderRepository repo;
   private OrderMessagingService orderMessages;
   private EmailOrderService emailOrderService;
   private OrderMapper orderMapper;
   private UserRepository userRepo;
+  private PaymentMethodRepository paymentMethodRepo;
+  private PaymentGateway paymentGateway;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService,
                             OrderMapper orderMapper,
-                            UserRepository userRepo) {
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
     this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
     this.userRepo = userRepo;
+    this.paymentMethodRepo = paymentMethodRepo;
+    this.paymentGateway = paymentGateway;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService,
                             OrderMapper orderMapper) {
-    this(repo, orderMessages, emailOrderService, orderMapper, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, null, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService) {
-    this(repo, orderMessages, emailOrderService, new OrderMapper(), null);
+    this(repo, orderMessages, emailOrderService, new OrderMapper(), null, null, null);
   }
 
   @GetMapping(produces="application/json")
@@ -113,22 +134,52 @@ public class OrderApiController {
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request, Authentication authentication) {
     TacoOrder order = orderMapper.toDomain(request);
-    Mono<TacoOrder> orderWithUser;
-    if (authentication != null && authentication.getName() != null && userRepo != null) {
-      orderWithUser = userRepo.findByUsername(authentication.getName())
-          .map(u -> {
-            order.setUser(u);
+
+    Mono<TacoOrder> orderWithPayment;
+    if (request.getPaymentMethodId() != null && paymentMethodRepo != null) {
+      orderWithPayment = paymentMethodRepo.findById(request.getPaymentMethodId())
+          .map(pm -> {
+            order.setPaymentMethodId(pm.getId());
+            order.setPaymentToken(pm.getPaymentToken());
+            order.setBrand(pm.getBrand());
+            order.setLast4(pm.getLast4());
+            return order;
+          })
+          .defaultIfEmpty(order);
+    } else if (request.getCcNumber() != null && paymentGateway != null) {
+      orderWithPayment = paymentGateway.tokenize(request.getCcNumber(), request.getCcExpiration(), request.getCcCVV())
+          .map(tok -> {
+            order.setPaymentToken(tok.getPaymentToken());
+            order.setBrand(tok.getBrand());
+            order.setLast4(tok.getLast4());
             return order;
           })
           .defaultIfEmpty(order);
     } else {
-      orderWithUser = Mono.just(order);
+      orderWithPayment = Mono.just(order);
     }
 
-    return orderWithUser
-        .flatMap(repo::save)
-        .doOnNext(orderMessages::sendOrder)
-        .map(orderMapper::toResponse);
+    return orderWithPayment.flatMap(ord -> {
+      Mono<TacoOrder> orderWithUser;
+      if (authentication != null && authentication.getName() != null && userRepo != null) {
+        orderWithUser = userRepo.findByUsername(authentication.getName())
+            .map(u -> {
+              ord.setUser(u);
+              return ord;
+            })
+            .defaultIfEmpty(ord);
+      } else {
+        orderWithUser = Mono.just(ord);
+      }
+
+      return orderWithUser
+          .flatMap(repo::save)
+          .doOnNext(saved -> {
+            log.info("Order saved: id={}, brand={}, last4={}", saved.getId(), saved.getBrand(), saved.getLast4());
+            orderMessages.sendOrder(saved);
+          })
+          .map(orderMapper::toResponse);
+    });
   }
 
   // TC-07: Una sola suscripción para guardar y publicar (save-then-send)

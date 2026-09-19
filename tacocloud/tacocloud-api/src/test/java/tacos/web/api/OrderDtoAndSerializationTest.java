@@ -110,9 +110,7 @@ public class OrderDtoAndSerializationTest {
     assertThat(domain.getDeliveryCity()).isEqualTo("Aguascalientes");
     assertThat(domain.getDeliveryState()).isEqualTo("AGS");
     assertThat(domain.getDeliveryZip()).isEqualTo("20100");
-    assertThat(domain.getCcNumber()).isEqualTo("1234567812345678");
-    assertThat(domain.getCcExpiration()).isEqualTo("11/29");
-    assertThat(domain.getCcCVV()).isEqualTo("987");
+    assertThat(domain.getLast4()).isEqualTo("5678");
 
     assertThat(domain.getTacos()).hasSize(1);
     Taco taco = domain.getTacos().get(0);
@@ -144,9 +142,9 @@ public class OrderDtoAndSerializationTest {
     domain.setDeliveryCity("Delivery City");
     domain.setDeliveryState("DS");
     domain.setDeliveryZip("99999");
-    domain.setCcNumber("4111111111111111");
-    domain.setCcExpiration("05/27");
-    domain.setCcCVV("123");
+    domain.setPaymentToken("tok_visa_12345678");
+    domain.setBrand("VISA");
+    domain.setLast4("1111");
 
     Taco taco = new Taco();
     taco.setId("T1");
@@ -228,8 +226,8 @@ public class OrderDtoAndSerializationTest {
     TacoOrder savedOrder = new TacoOrder();
     savedOrder.setId("SAVED_ORDER_100");
     savedOrder.setDeliveryName("Jane Doe");
-    savedOrder.setCcNumber("4111111111111111");
-    savedOrder.setCcCVV("123");
+    savedOrder.setBrand("VISA");
+    savedOrder.setLast4("1111");
 
     when(repo.save(any(TacoOrder.class))).thenReturn(Mono.just(savedOrder));
 
@@ -287,8 +285,8 @@ public class OrderDtoAndSerializationTest {
     order1.setId("ORD_1");
     order1.setUser(user);
     order1.setDeliveryName("Craig Walls");
-    order1.setCcNumber("1111222233334444");
-    order1.setCcCVV("999");
+    order1.setBrand("VISA");
+    order1.setLast4("4444");
 
     when(repo.findAll()).thenReturn(Flux.just(order1));
 

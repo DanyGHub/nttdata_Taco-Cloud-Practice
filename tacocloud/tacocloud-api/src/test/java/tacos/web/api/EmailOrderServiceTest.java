@@ -54,7 +54,7 @@ public class EmailOrderServiceTest {
       "craig@habuma.com");
     user.setId("USER_1");
 
-    PaymentMethod payment = new PaymentMethod(user, "1111222233334444", "123", "01/30");
+    PaymentMethod payment = new PaymentMethod(user, "tok_fake_1111", "VISA", "4444", "01/30");
 
     Ingredient flto = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
     Ingredient carn = new Ingredient("CARN", "Carnitas", Type.PROTEIN);
@@ -94,9 +94,9 @@ public class EmailOrderServiceTest {
           assertThat(order.getDeliveryState()).isEqualTo("TX");
           assertThat(order.getDeliveryZip()).isEqualTo("76227");
 
-          assertThat(order.getCcNumber()).isEqualTo("1111222233334444");
-          assertThat(order.getCcCVV()).isEqualTo("123");
-          assertThat(order.getCcExpiration()).isEqualTo("01/30");
+          assertThat(order.getPaymentToken()).isEqualTo("tok_fake_1111");
+          assertThat(order.getBrand()).isEqualTo("VISA");
+          assertThat(order.getLast4()).isEqualTo("4444");
           assertThat(order.getPlacedAt()).isNotNull();
 
           assertThat(order.getTacos()).hasSize(2);
@@ -125,7 +125,7 @@ public class EmailOrderServiceTest {
       "123-123-1234", 
       "craig@habuma.com");
     user.setId("USER_1");
-    PaymentMethod payment = new PaymentMethod(user, "1111222233334444", "123", "01/30");
+    PaymentMethod payment = new PaymentMethod(user, "tok_fake_1111", "VISA", "4444", "01/30");
 
     Ingredient flto = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
 
@@ -209,7 +209,7 @@ public class EmailOrderServiceTest {
       "123-123-1234", 
       "craig@habuma.com");
     user.setId("USER_1");
-    PaymentMethod payment = new PaymentMethod(user, "1111222233334444", "123", "01/30");
+    PaymentMethod payment = new PaymentMethod(user, "tok_fake_1111", "VISA", "4444", "01/30");
 
     when(userRepo.findByEmail("craig@habuma.com")).thenReturn(Mono.just(user));
     when(paymentMethodRepo.findByUserId("USER_1")).thenReturn(Mono.just(payment));
@@ -233,7 +233,7 @@ public class EmailOrderServiceTest {
     User user = new User("craig", "password", "Craig Walls", "123 North Street",
         "Cross Roads", "TX", "76227", "123-123-1234", "craig@habuma.com");
     user.setId("USER_1");
-    PaymentMethod payment = new PaymentMethod(user, "1111222233334444", "123", "01/30");
+    PaymentMethod payment = new PaymentMethod(user, "tok_fake_1111", "VISA", "4444", "01/30");
 
     Ingredient flto = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
     Ingredient coto = new Ingredient("COTO", "Corn Tortilla", Type.WRAP);

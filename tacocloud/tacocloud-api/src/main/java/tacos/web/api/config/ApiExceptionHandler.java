@@ -171,7 +171,7 @@ public class ApiExceptionHandler {
       return null;
     }
     String lower = field.toLowerCase();
-    if (lower.contains("password") || lower.contains("ccnumber") || lower.contains("cccvv") || lower.contains("cvv")) {
+    if (lower.contains("password") || lower.contains("ccnumber") || lower.contains("cardnumber") || lower.contains("cccvv") || lower.contains("cvv") || lower.contains("token")) {
       return "****";
     }
     return value;

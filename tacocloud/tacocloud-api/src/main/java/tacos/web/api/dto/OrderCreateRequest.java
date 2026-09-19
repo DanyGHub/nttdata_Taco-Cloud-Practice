@@ -39,16 +39,18 @@ public class OrderCreateRequest {
   @NotBlank(message = "Zip code is required")
   private String deliveryZip;
 
+  private String paymentMethodId;
+  private String paymentToken;
+  private String brand;
+  private String last4;
+
   @CreditCardNumber(message = "Not a valid credit card number")
-  @NotBlank(message = "Credit card number is required")
   private String ccNumber;
 
   @Pattern(regexp = "^(0[1-9]|1[0-2])([\\/])([2-9][0-9])$", message = "Must be formatted MM/YY")
-  @NotBlank(message = "Expiration date is required")
   private String ccExpiration;
 
   @Pattern(regexp = "^[0-9]{3}$", message = "Invalid CVV")
-  @NotBlank(message = "CVV is required")
   private String ccCVV;
 
   @NotEmpty(message = "You must specify at least 1 taco")
@@ -57,6 +59,17 @@ public class OrderCreateRequest {
 
   public void addTaco(TacoRequest taco) {
     this.tacos.add(taco);
+  }
+
+  @Override
+  public String toString() {
+    String maskedCard = (ccNumber != null && ccNumber.length() >= 4)
+        ? "****-****-****-" + ccNumber.substring(ccNumber.length() - 4)
+        : (last4 != null ? "****-****-****-" + last4 : "****");
+    return "OrderCreateRequest(deliveryName=" + deliveryName + ", deliveryStreet=" + deliveryStreet
+        + ", deliveryCity=" + deliveryCity + ", deliveryState=" + deliveryState + ", deliveryZip=" + deliveryZip
+        + ", paymentMethodId=" + paymentMethodId + ", brand=" + brand + ", last4=" + last4
+        + ", ccNumber=" + maskedCard + ", ccCVV=***, tacos=" + tacos + ")";
   }
 
 }

@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import tacos.Ingredient.Type;
 import tacos.data.IngredientRepository;
+import tacos.data.PaymentDataMigrationService;
 import tacos.data.PaymentMethodRepository;
 import tacos.data.TacoRepository;
 import tacos.data.UserRepository;
@@ -17,6 +18,11 @@ import tacos.data.UserRepository;
 @Profile("!prod")
 @Configuration
 public class DevelopmentConfig {
+
+  @Bean
+  public CommandLineRunner paymentDataMigrationRunner(PaymentDataMigrationService migrationService) {
+    return args -> migrationService.purgeLegacySensitiveCardData().subscribe();
+  }
 
   @Bean
   public CommandLineRunner dataLoader(IngredientRepository repo,
@@ -48,7 +54,7 @@ public class DevelopmentConfig {
             .switchIfEmpty(reactor.core.publisher.Mono.defer(() -> userRepo.save(new User("habuma", encoder.encode("password"), 
                   "Craig Walls", "123 North Street", "Cross Roads", "TX", 
                   "76227", "123-123-1234", "craig@habuma.com", Arrays.asList("ROLE_USER")))))
-            .flatMap(user -> paymentMethodRepo.save(new PaymentMethod(user, "4111111111111111", "321", "10/25")))
+            .flatMap(user -> paymentMethodRepo.save(new PaymentMethod(user, "tok_habuma_visa4111", "VISA", "4111", "10/25")))
             .block();
 
         userRepo.findByUsername("admin")

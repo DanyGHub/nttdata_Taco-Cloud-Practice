@@ -80,8 +80,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         // 9. Cocina (debe ir antes de /orders/** por especificidad)
         .antMatchers("/orders/receive/**", "/kitchen/**", "/api/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
 
-        // 10. Pedidos / Órdenes (API y Vistas Web)
-        .antMatchers("/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN")
+        // 10. Pedidos / Órdenes (API y Vistas Web) y Métodos de Pago
+        .antMatchers("/api/payment-methods/**", "/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN")
 
         // 11. TC-11 Regla final: Deny-by-default
         .anyRequest().denyAll()

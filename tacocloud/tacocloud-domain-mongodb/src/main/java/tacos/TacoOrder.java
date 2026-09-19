@@ -31,11 +31,11 @@ public class TacoOrder implements Serializable {
 
   private String deliveryZip;
 
-  private String ccNumber;
-
-  private String ccExpiration;
-
-  private String ccCVV;
+  private String paymentMethodId;
+  @com.fasterxml.jackson.annotation.JsonIgnore
+  private String paymentToken;
+  private String brand;
+  private String last4;
 
 
   private List<Taco> tacos = new ArrayList<>();
