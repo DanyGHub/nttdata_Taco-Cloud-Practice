@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tacos.data.PaymentMethodRepository;
 import tacos.payment.PaymentGateway;
+import tacos.pricing.PricingService;
 
 @RestController
 @RequestMapping(path="/api/orders",
@@ -55,6 +56,7 @@ public class OrderApiController {
   private UserRepository userRepo;
   private PaymentMethodRepository paymentMethodRepo;
   private PaymentGateway paymentGateway;
+  private PricingService pricingService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -63,7 +65,8 @@ public class OrderApiController {
                             OrderMapper orderMapper,
                             UserRepository userRepo,
                             PaymentMethodRepository paymentMethodRepo,
-                            PaymentGateway paymentGateway) {
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -71,6 +74,17 @@ public class OrderApiController {
     this.userRepo = userRepo;
     this.paymentMethodRepo = paymentMethodRepo;
     this.paymentGateway = paymentGateway;
+    this.pricingService = pricingService;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -78,20 +92,20 @@ public class OrderApiController {
                             EmailOrderService emailOrderService,
                             OrderMapper orderMapper,
                             UserRepository userRepo) {
-    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, null, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, null, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService,
                             OrderMapper orderMapper) {
-    this(repo, orderMessages, emailOrderService, orderMapper, null, null, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, null, null, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
                             EmailOrderService emailOrderService) {
-    this(repo, orderMessages, emailOrderService, new OrderMapper(), null, null, null);
+    this(repo, orderMessages, emailOrderService, new OrderMapper(), null, null, null, null);
   }
 
   @GetMapping(produces="application/json")
@@ -160,25 +174,32 @@ public class OrderApiController {
     }
 
     return orderWithPayment.flatMap(ord -> {
-      Mono<TacoOrder> orderWithUser;
-      if (authentication != null && authentication.getName() != null && userRepo != null) {
-        orderWithUser = userRepo.findByUsername(authentication.getName())
-            .map(u -> {
-              ord.setUser(u);
-              return ord;
-            })
-            .defaultIfEmpty(ord);
-      } else {
-        orderWithUser = Mono.just(ord);
-      }
+      Mono<TacoOrder> orderWithPricing = pricingService != null
+          ? pricingService.calculateAndApplyPricing(ord)
+          : Mono.just(ord);
 
-      return orderWithUser
-          .flatMap(repo::save)
-          .doOnNext(saved -> {
-            log.info("Order saved: id={}, brand={}, last4={}", saved.getId(), saved.getBrand(), saved.getLast4());
-            orderMessages.sendOrder(saved);
-          })
-          .map(orderMapper::toResponse);
+      return orderWithPricing.flatMap(pricedOrder -> {
+        Mono<TacoOrder> orderWithUser;
+        if (authentication != null && authentication.getName() != null && userRepo != null) {
+          orderWithUser = userRepo.findByUsername(authentication.getName())
+              .map(u -> {
+                pricedOrder.setUser(u);
+                return pricedOrder;
+              })
+              .defaultIfEmpty(pricedOrder);
+        } else {
+          orderWithUser = Mono.just(pricedOrder);
+        }
+
+        return orderWithUser
+            .flatMap(repo::save)
+            .doOnNext(saved -> {
+              log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
+                  saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
+              orderMessages.sendOrder(saved);
+            })
+            .map(orderMapper::toResponse);
+      });
     });
   }
 

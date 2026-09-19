@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import tacos.Ingredient;
+import tacos.OrderItem;
 import tacos.Taco;
 import tacos.TacoOrder;
 
@@ -44,19 +45,21 @@ public class OrderMapper {
       order.setLast4(request.getCcNumber().substring(request.getCcNumber().length() - 4));
     }
 
-    if (request.getTacos() != null) {
+    if (request.getItems() != null && !request.getItems().isEmpty()) {
+      for (OrderItemRequest itemReq : request.getItems()) {
+        if (itemReq != null && itemReq.getTaco() != null) {
+          Taco taco = toTacoDomain(itemReq.getTaco());
+          int qty = itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
+          OrderItem item = new OrderItem(taco, qty);
+          order.addOrderItem(item);
+        }
+      }
+    } else if (request.getTacos() != null) {
       for (TacoRequest tacoReq : request.getTacos()) {
         if (tacoReq != null) {
-          Taco taco = new Taco();
-          taco.setName(tacoReq.getName());
-          if (tacoReq.getIngredients() != null) {
-            List<Ingredient> ingredients = tacoReq.getIngredients().stream()
-                .filter(Objects::nonNull)
-                .map(ingredientMapper::toDomain)
-                .collect(Collectors.toList());
-            taco.setIngredients(ingredients);
-          }
-          order.addTaco(taco);
+          Taco taco = toTacoDomain(tacoReq);
+          OrderItem item = new OrderItem(taco, 1);
+          order.addOrderItem(item);
         }
       }
     }
@@ -80,23 +83,31 @@ public class OrderMapper {
     response.setUsername(order.getUser() != null ? order.getUser().getUsername() : null);
     response.setBrand(order.getBrand());
     response.setLast4(order.getLast4());
+    response.setSubtotal(order.getSubtotal());
+    response.setTotal(order.getTotal());
+    response.setCurrency(order.getCurrency() != null ? order.getCurrency() : "USD");
+
+    if (order.getItems() != null && !order.getItems().isEmpty()) {
+      List<OrderItemResponse> itemResponses = new ArrayList<>();
+      for (OrderItem item : order.getItems()) {
+        if (item != null) {
+          OrderItemResponse itemResp = new OrderItemResponse(
+              toTacoResponse(item.getTaco()),
+              item.getQuantity(),
+              item.getUnitPriceAtPurchase(),
+              item.getSubtotal()
+          );
+          itemResponses.add(itemResp);
+        }
+      }
+      response.setItems(itemResponses);
+    }
 
     if (order.getTacos() != null) {
       List<TacoResponse> tacoResponses = new ArrayList<>();
       for (Taco taco : order.getTacos()) {
         if (taco != null) {
-          TacoResponse tacoResp = new TacoResponse();
-          tacoResp.setId(taco.getId());
-          tacoResp.setName(taco.getName());
-          tacoResp.setCreatedAt(taco.getCreatedAt());
-          if (taco.getIngredients() != null) {
-            List<IngredientResponse> ingResponses = taco.getIngredients().stream()
-                .filter(Objects::nonNull)
-                .map(ingredientMapper::toResponse)
-                .collect(Collectors.toList());
-            tacoResp.setIngredients(ingResponses);
-          }
-          tacoResponses.add(tacoResp);
+          tacoResponses.add(toTacoResponse(taco));
         }
       }
       response.setTacos(tacoResponses);
@@ -111,13 +122,24 @@ public class OrderMapper {
     }
     Taco taco = new Taco();
     taco.setName(request.getName());
-    if (request.getIngredients() != null) {
-      List<Ingredient> ingredients = request.getIngredients().stream()
+    List<Ingredient> ingredients = new ArrayList<>();
+
+    if (request.getIngredients() != null && !request.getIngredients().isEmpty()) {
+      ingredients.addAll(request.getIngredients().stream()
           .filter(Objects::nonNull)
           .map(ingredientMapper::toDomain)
-          .collect(Collectors.toList());
-      taco.setIngredients(ingredients);
+          .collect(Collectors.toList()));
     }
+
+    if (request.getIngredientIds() != null && !request.getIngredientIds().isEmpty()) {
+      for (String id : request.getIngredientIds()) {
+        if (id != null && !id.trim().isEmpty()) {
+          ingredients.add(new Ingredient(id, id, null));
+        }
+      }
+    }
+
+    taco.setIngredients(ingredients);
     return taco;
   }
 

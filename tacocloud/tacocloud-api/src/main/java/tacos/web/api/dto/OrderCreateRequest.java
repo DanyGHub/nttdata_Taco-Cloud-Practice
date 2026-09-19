@@ -57,8 +57,32 @@ public class OrderCreateRequest {
   @Valid
   private List<TacoRequest> tacos = new ArrayList<>();
 
+  @Valid
+  private List<OrderItemRequest> items = new ArrayList<>();
+
+  private java.math.BigDecimal total;
+  private java.math.BigDecimal subtotal;
+
+  public void setItems(List<OrderItemRequest> items) {
+    this.items = items;
+    if (items != null) {
+      for (OrderItemRequest item : items) {
+        if (item != null && item.getTaco() != null) {
+          this.tacos.add(item.getTaco());
+        }
+      }
+    }
+  }
+
   public void addTaco(TacoRequest taco) {
     this.tacos.add(taco);
+  }
+
+  public void addItem(OrderItemRequest item) {
+    this.items.add(item);
+    if (item != null && item.getTaco() != null) {
+      this.tacos.add(item.getTaco());
+    }
   }
 
   @Override

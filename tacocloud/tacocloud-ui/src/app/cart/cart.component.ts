@@ -11,15 +11,17 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 @Injectable()
 export class CartComponent implements OnInit {
 
-  model = {
+  model: any = {
     deliveryName: '',
     deliveryStreet: '',
+    deliveryCity: '',
     deliveryState: '',
     deliveryZip: '',
     ccNumber: '',
     ccExpiration: '',
     ccCVV: '',
-    tacos: []
+    tacos: [] as any[],
+    items: [] as any[]
   };
 
   constructor(private cart: CartService, private httpClient: HttpClient) {
@@ -37,9 +39,17 @@ export class CartComponent implements OnInit {
   }
 
   onSubmit() {
-    // this.model.tacos = this.cart.getItemsInCart();
+    this.model.tacos = [];
+    this.model.items = [];
     this.cart.getItemsInCart().forEach(cartItem => {
-      this.model.tacos.push(cartItem.taco);
+      const qty = Number(cartItem.quantity) || 1;
+      if (qty > 0) {
+        this.model.items.push({
+          taco: cartItem.taco,
+          quantity: qty
+        });
+        this.model.tacos.push(cartItem.taco);
+      }
     });
 
     this.httpClient.post(

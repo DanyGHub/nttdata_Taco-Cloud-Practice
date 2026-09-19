@@ -23,8 +23,19 @@ public class TacoRequest {
   @Size(min = 5, message = "Name must be at least 5 characters long")
   private String name;
 
-  @NotEmpty(message = "You must choose at least 1 ingredient")
   @Valid
   private List<IngredientRequest> ingredients = new ArrayList<>();
 
+  private List<String> ingredientIds;
+
+  @javax.validation.constraints.AssertTrue(message = "You must choose at least 1 ingredient")
+  public boolean isIngredientsPresent() {
+    return (ingredients != null && !ingredients.isEmpty())
+        || (ingredientIds != null && !ingredientIds.isEmpty());
+  }
+
+  public TacoRequest(String name, List<IngredientRequest> ingredients) {
+    this.name = name;
+    this.ingredients = ingredients;
+  }
 }

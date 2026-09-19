@@ -25,4 +25,9 @@ public class OrderResponse {
   private String brand;
   private String last4;
 
+  private List<OrderItemResponse> items = new ArrayList<>();
+  private java.math.BigDecimal subtotal;
+  private java.math.BigDecimal total;
+  private String currency = "USD";
+
 }
