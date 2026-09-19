@@ -62,6 +62,7 @@ public class OrderCreateRequest {
 
   private java.math.BigDecimal total;
   private java.math.BigDecimal subtotal;
+  private String couponCode;
 
   public void setItems(List<OrderItemRequest> items) {
     this.items = items;

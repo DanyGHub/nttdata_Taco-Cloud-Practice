@@ -44,6 +44,8 @@ public class TacoOrder implements Serializable {
   private BigDecimal subtotal = BigDecimal.ZERO;
   private BigDecimal total = BigDecimal.ZERO;
   private String currency = "USD";
+  private String couponCode;
+  private BigDecimal discountAmount = BigDecimal.ZERO;
 
   public void addTaco(Taco design) {
     this.tacos.add(design);

@@ -27,7 +27,9 @@ public class OrderResponse {
 
   private List<OrderItemResponse> items = new ArrayList<>();
   private java.math.BigDecimal subtotal;
+  private java.math.BigDecimal discountAmount;
   private java.math.BigDecimal total;
   private String currency = "USD";
+  private String couponCode;
 
 }

@@ -31,10 +31,16 @@ public class PricingService {
   public static final BigDecimal BASE_TACO_PRICE = BigDecimal.ZERO;
 
   private final IngredientRepository ingredientRepo;
+  private final CouponService couponService;
 
   @Autowired
-  public PricingService(IngredientRepository ingredientRepo) {
+  public PricingService(IngredientRepository ingredientRepo, CouponService couponService) {
     this.ingredientRepo = ingredientRepo;
+    this.couponService = couponService;
+  }
+
+  public PricingService(IngredientRepository ingredientRepo) {
+    this(ingredientRepo, null);
   }
 
   public Mono<TacoOrder> calculateAndApplyPricing(TacoOrder order) {
@@ -44,6 +50,7 @@ public class PricingService {
 
     if (order.getItems() == null || order.getItems().isEmpty()) {
       order.setSubtotal(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
+      order.setDiscountAmount(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
       order.setTotal(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
       order.setCurrency(DEFAULT_CURRENCY);
       return Mono.just(order);
@@ -106,11 +113,28 @@ public class PricingService {
 
       orderSubtotal = orderSubtotal.setScale(2, DEFAULT_ROUNDING_MODE);
       order.setSubtotal(orderSubtotal);
-      order.setTotal(orderSubtotal);
+
+      BigDecimal discount = BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE);
+      if (couponService != null && order.getCouponCode() != null && !order.getCouponCode().trim().isEmpty()) {
+        CouponValidationResult couponResult = couponService.validateAndCalculate(order.getCouponCode(), orderSubtotal);
+        if (couponResult.isValid()) {
+          discount = couponResult.getDiscountAmount();
+          order.setCouponCode(couponResult.getCode());
+          order.setDiscountAmount(discount);
+        } else {
+          log.info("Coupon code '{}' could not be applied: {}", order.getCouponCode(), couponResult.getMessage());
+          order.setDiscountAmount(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
+        }
+      } else {
+        order.setDiscountAmount(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
+      }
+
+      BigDecimal finalTotal = orderSubtotal.subtract(discount).max(BigDecimal.ZERO).setScale(2, DEFAULT_ROUNDING_MODE);
+      order.setTotal(finalTotal);
       order.setCurrency(DEFAULT_CURRENCY);
 
-      log.info("Server-calculated pricing applied: subtotal={}, total={}, currency={}, items={}",
-          orderSubtotal, orderSubtotal, DEFAULT_CURRENCY, order.getItems().size());
+      log.info("Server-calculated pricing applied: subtotal={}, discount={}, total={}, currency={}, items={}",
+          orderSubtotal, discount, finalTotal, DEFAULT_CURRENCY, order.getItems().size());
 
       return order;
     });

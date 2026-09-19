@@ -37,9 +37,19 @@ import tacos.data.UserRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import tacos.OrderItem;
+import tacos.Taco;
 import tacos.data.PaymentMethodRepository;
 import tacos.payment.PaymentGateway;
 import tacos.pricing.PricingService;
+import tacos.web.api.dto.OrderItemRequest;
+import tacos.web.api.dto.OrderItemResponse;
+import tacos.web.api.dto.OrderQuoteRequest;
+import tacos.web.api.dto.OrderQuoteResponse;
+import tacos.web.api.dto.TacoRequest;
 
 @RestController
 @RequestMapping(path="/api/orders",
@@ -142,6 +152,70 @@ public class OrderApiController {
           }
           return Mono.just(ResponseEntity.ok(orderMapper.toResponse(order)));
         });
+  }
+
+  @PostMapping(path="/quote", consumes="application/json")
+  public Mono<OrderQuoteResponse> quoteOrder(@RequestBody OrderQuoteRequest request) {
+    if (request == null) {
+      return Mono.just(OrderQuoteResponse.builder()
+          .subtotal(BigDecimal.ZERO.setScale(2))
+          .discountAmount(BigDecimal.ZERO.setScale(2))
+          .total(BigDecimal.ZERO.setScale(2))
+          .currency("USD")
+          .build());
+    }
+
+    TacoOrder tempOrder = new TacoOrder();
+    tempOrder.setCouponCode(request.getCouponCode());
+
+    if (request.getItems() != null && !request.getItems().isEmpty()) {
+      for (OrderItemRequest itemReq : request.getItems()) {
+        if (itemReq != null && itemReq.getTaco() != null) {
+          Taco taco = orderMapper.toTacoDomain(itemReq.getTaco());
+          int qty = itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
+          tempOrder.addOrderItem(new OrderItem(taco, qty));
+        }
+      }
+    } else if (request.getTacos() != null && !request.getTacos().isEmpty()) {
+      for (TacoRequest tacoReq : request.getTacos()) {
+        if (tacoReq != null) {
+          Taco taco = orderMapper.toTacoDomain(tacoReq);
+          tempOrder.addOrderItem(new OrderItem(taco, 1));
+        }
+      }
+    }
+
+    Mono<TacoOrder> pricedOrderMono = pricingService != null
+        ? pricingService.calculateAndApplyPricing(tempOrder)
+        : Mono.just(tempOrder);
+
+    return pricedOrderMono.map(priced -> {
+      List<OrderItemResponse> itemResponses = new ArrayList<>();
+      if (priced.getItems() != null) {
+        for (OrderItem item : priced.getItems()) {
+          itemResponses.add(new OrderItemResponse(
+              orderMapper.toTacoResponse(item.getTaco()),
+              item.getQuantity(),
+              item.getUnitPriceAtPurchase(),
+              item.getSubtotal()
+          ));
+        }
+      }
+
+      boolean couponApplied = priced.getDiscountAmount() != null &&
+          priced.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0;
+
+      return OrderQuoteResponse.builder()
+          .subtotal(priced.getSubtotal())
+          .discountAmount(priced.getDiscountAmount() != null ? priced.getDiscountAmount() : BigDecimal.ZERO.setScale(2))
+          .total(priced.getTotal())
+          .currency(priced.getCurrency() != null ? priced.getCurrency() : "USD")
+          .couponCode(priced.getCouponCode())
+          .couponApplied(couponApplied)
+          .couponMessage(couponApplied ? "Coupon applied successfully" : (request.getCouponCode() != null ? "Coupon not applied" : null))
+          .items(itemResponses)
+          .build();
+    });
   }
 
   @PostMapping(consumes="application/json")

@@ -44,6 +44,7 @@ public class OrderMapper {
     } else if (request.getCcNumber() != null && request.getCcNumber().length() >= 4) {
       order.setLast4(request.getCcNumber().substring(request.getCcNumber().length() - 4));
     }
+    order.setCouponCode(request.getCouponCode());
 
     if (request.getItems() != null && !request.getItems().isEmpty()) {
       for (OrderItemRequest itemReq : request.getItems()) {
@@ -84,8 +85,10 @@ public class OrderMapper {
     response.setBrand(order.getBrand());
     response.setLast4(order.getLast4());
     response.setSubtotal(order.getSubtotal());
+    response.setDiscountAmount(order.getDiscountAmount());
     response.setTotal(order.getTotal());
     response.setCurrency(order.getCurrency() != null ? order.getCurrency() : "USD");
+    response.setCouponCode(order.getCouponCode());
 
     if (order.getItems() != null && !order.getItems().isEmpty()) {
       List<OrderItemResponse> itemResponses = new ArrayList<>();

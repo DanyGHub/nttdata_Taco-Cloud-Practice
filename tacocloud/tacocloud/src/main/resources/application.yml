@@ -11,6 +11,37 @@ taco:
   discount:
     codes:
       abcdef: 10
+    coupons:
+      TACO10:
+        type: PERCENTAGE
+        value: 10
+        min-order-amount: 10.00
+        max-discount-amount: 5.00
+        valid-from: "2026-01-01T00:00:00Z"
+        valid-to: "2026-12-31T23:59:59Z"
+      SAVE5:
+        type: FIXED
+        value: 5.00
+        min-order-amount: 15.00
+        valid-from: "2026-01-01T00:00:00Z"
+        valid-to: "2026-12-31T23:59:59Z"
+      MEGA50:
+        type: PERCENTAGE
+        value: 50
+        min-order-amount: 20.00
+        max-discount-amount: 10.00
+        valid-from: "2026-01-01T00:00:00Z"
+        valid-to: "2026-12-31T23:59:59Z"
+      EXPIRED2020:
+        type: PERCENTAGE
+        value: 20
+        valid-from: "2020-01-01T00:00:00Z"
+        valid-to: "2020-12-31T23:59:59Z"
+      FUTURE2030:
+        type: FIXED
+        value: 10.00
+        valid-from: "2030-01-01T00:00:00Z"
+        valid-to: "2030-12-31T23:59:59Z"
 
 
 
