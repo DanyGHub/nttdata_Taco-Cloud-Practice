@@ -52,6 +52,7 @@ import tacos.web.api.dto.OrderQuoteResponse;
 import tacos.web.api.dto.TacoRequest;
 
 import tacos.inventory.InventoryService;
+import tacos.physics.TacoDesignValidator;
 import org.bson.types.ObjectId;
 
 @RestController
@@ -71,6 +72,7 @@ public class OrderApiController {
   private PaymentGateway paymentGateway;
   private PricingService pricingService;
   private InventoryService inventoryService;
+  private TacoDesignValidator designValidator;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -81,7 +83,8 @@ public class OrderApiController {
                             PaymentMethodRepository paymentMethodRepo,
                             PaymentGateway paymentGateway,
                             PricingService pricingService,
-                            InventoryService inventoryService) {
+                            InventoryService inventoryService,
+                            TacoDesignValidator designValidator) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -91,6 +94,19 @@ public class OrderApiController {
     this.paymentGateway = paymentGateway;
     this.pricingService = pricingService;
     this.inventoryService = inventoryService;
+    this.designValidator = designValidator;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService,
+                            InventoryService inventoryService) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -171,6 +187,28 @@ public class OrderApiController {
         });
   }
 
+  private Mono<Void> validateOrderTacos(TacoOrder order) {
+    if (designValidator == null || order == null) {
+      return Mono.empty();
+    }
+    List<Mono<Void>> validations = new ArrayList<>();
+    if (order.getItems() != null) {
+      for (OrderItem item : order.getItems()) {
+        if (item != null && item.getTaco() != null) {
+          validations.add(designValidator.validateTacoAndThrow(item.getTaco()));
+        }
+      }
+    }
+    if (order.getTacos() != null) {
+      for (Taco taco : order.getTacos()) {
+        if (taco != null) {
+          validations.add(designValidator.validateTacoAndThrow(taco));
+        }
+      }
+    }
+    return validations.isEmpty() ? Mono.empty() : Mono.when(validations);
+  }
+
   @PostMapping(path="/quote", consumes="application/json")
   public Mono<OrderQuoteResponse> quoteOrder(@RequestBody OrderQuoteRequest request) {
     if (request == null) {
@@ -202,37 +240,39 @@ public class OrderApiController {
       }
     }
 
-    Mono<TacoOrder> pricedOrderMono = pricingService != null
-        ? pricingService.calculateAndApplyPricing(tempOrder)
-        : Mono.just(tempOrder);
+    return validateOrderTacos(tempOrder).then(Mono.defer(() -> {
+      Mono<TacoOrder> pricedOrderMono = pricingService != null
+          ? pricingService.calculateAndApplyPricing(tempOrder)
+          : Mono.just(tempOrder);
 
-    return pricedOrderMono.map(priced -> {
-      List<OrderItemResponse> itemResponses = new ArrayList<>();
-      if (priced.getItems() != null) {
-        for (OrderItem item : priced.getItems()) {
-          itemResponses.add(new OrderItemResponse(
-              orderMapper.toTacoResponse(item.getTaco()),
-              item.getQuantity(),
-              item.getUnitPriceAtPurchase(),
-              item.getSubtotal()
-          ));
+      return pricedOrderMono.map(priced -> {
+        List<OrderItemResponse> itemResponses = new ArrayList<>();
+        if (priced.getItems() != null) {
+          for (OrderItem item : priced.getItems()) {
+            itemResponses.add(new OrderItemResponse(
+                orderMapper.toTacoResponse(item.getTaco()),
+                item.getQuantity(),
+                item.getUnitPriceAtPurchase(),
+                item.getSubtotal()
+            ));
+          }
         }
-      }
 
-      boolean couponApplied = priced.getDiscountAmount() != null &&
-          priced.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0;
+        boolean couponApplied = priced.getDiscountAmount() != null &&
+            priced.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0;
 
-      return OrderQuoteResponse.builder()
-          .subtotal(priced.getSubtotal())
-          .discountAmount(priced.getDiscountAmount() != null ? priced.getDiscountAmount() : BigDecimal.ZERO.setScale(2))
-          .total(priced.getTotal())
-          .currency(priced.getCurrency() != null ? priced.getCurrency() : "USD")
-          .couponCode(priced.getCouponCode())
-          .couponApplied(couponApplied)
-          .couponMessage(couponApplied ? "Coupon applied successfully" : (request.getCouponCode() != null ? "Coupon not applied" : null))
-          .items(itemResponses)
-          .build();
-    });
+        return OrderQuoteResponse.builder()
+            .subtotal(priced.getSubtotal())
+            .discountAmount(priced.getDiscountAmount() != null ? priced.getDiscountAmount() : BigDecimal.ZERO.setScale(2))
+            .total(priced.getTotal())
+            .currency(priced.getCurrency() != null ? priced.getCurrency() : "USD")
+            .couponCode(priced.getCouponCode())
+            .couponApplied(couponApplied)
+            .couponMessage(couponApplied ? "Coupon applied successfully" : (request.getCouponCode() != null ? "Coupon not applied" : null))
+            .items(itemResponses)
+            .build();
+      });
+    }));
   }
 
   @PostMapping(consumes="application/json")
@@ -240,76 +280,78 @@ public class OrderApiController {
   public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request, Authentication authentication) {
     TacoOrder order = orderMapper.toDomain(request);
 
-    Mono<TacoOrder> orderWithPayment;
-    if (request.getPaymentMethodId() != null && paymentMethodRepo != null) {
-      orderWithPayment = paymentMethodRepo.findById(request.getPaymentMethodId())
-          .map(pm -> {
-            order.setPaymentMethodId(pm.getId());
-            order.setPaymentToken(pm.getPaymentToken());
-            order.setBrand(pm.getBrand());
-            order.setLast4(pm.getLast4());
-            return order;
-          })
-          .defaultIfEmpty(order);
-    } else if (request.getCcNumber() != null && paymentGateway != null) {
-      orderWithPayment = paymentGateway.tokenize(request.getCcNumber(), request.getCcExpiration(), request.getCcCVV())
-          .map(tok -> {
-            order.setPaymentToken(tok.getPaymentToken());
-            order.setBrand(tok.getBrand());
-            order.setLast4(tok.getLast4());
-            return order;
-          })
-          .defaultIfEmpty(order);
-    } else {
-      orderWithPayment = Mono.just(order);
-    }
+    return validateOrderTacos(order).then(Mono.defer(() -> {
+      Mono<TacoOrder> orderWithPayment;
+      if (request.getPaymentMethodId() != null && paymentMethodRepo != null) {
+        orderWithPayment = paymentMethodRepo.findById(request.getPaymentMethodId())
+            .map(pm -> {
+              order.setPaymentMethodId(pm.getId());
+              order.setPaymentToken(pm.getPaymentToken());
+              order.setBrand(pm.getBrand());
+              order.setLast4(pm.getLast4());
+              return order;
+            })
+            .defaultIfEmpty(order);
+      } else if (request.getCcNumber() != null && paymentGateway != null) {
+        orderWithPayment = paymentGateway.tokenize(request.getCcNumber(), request.getCcExpiration(), request.getCcCVV())
+            .map(tok -> {
+              order.setPaymentToken(tok.getPaymentToken());
+              order.setBrand(tok.getBrand());
+              order.setLast4(tok.getLast4());
+              return order;
+            })
+            .defaultIfEmpty(order);
+      } else {
+        orderWithPayment = Mono.just(order);
+      }
 
-    return orderWithPayment.flatMap(ord -> {
-      Mono<TacoOrder> orderWithPricing = pricingService != null
-          ? pricingService.calculateAndApplyPricing(ord)
-          : Mono.just(ord);
+      return orderWithPayment.flatMap(ord -> {
+        Mono<TacoOrder> orderWithPricing = pricingService != null
+            ? pricingService.calculateAndApplyPricing(ord)
+            : Mono.just(ord);
 
-      return orderWithPricing.flatMap(pricedOrder -> {
-        if (pricedOrder.getId() == null || pricedOrder.getId().trim().isEmpty()) {
-          pricedOrder.setId(new ObjectId().toHexString());
-        }
-
-        Mono<TacoOrder> reservedOrderMono = inventoryService != null
-            ? inventoryService.reserve(pricedOrder).thenReturn(pricedOrder)
-            : Mono.just(pricedOrder);
-
-        return reservedOrderMono.flatMap(ordToSave -> {
-          Mono<TacoOrder> orderWithUser;
-          if (authentication != null && authentication.getName() != null && userRepo != null) {
-            orderWithUser = userRepo.findByUsername(authentication.getName())
-                .map(u -> {
-                  ordToSave.setUser(u);
-                  return ordToSave;
-                })
-                .defaultIfEmpty(ordToSave);
-          } else {
-            orderWithUser = Mono.just(ordToSave);
+        return orderWithPricing.flatMap(pricedOrder -> {
+          if (pricedOrder.getId() == null || pricedOrder.getId().trim().isEmpty()) {
+            pricedOrder.setId(new ObjectId().toHexString());
           }
 
-          return orderWithUser
-              .flatMap(repo::save)
-              .doOnNext(saved -> {
-                log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
-                    saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
-                orderMessages.sendOrder(saved);
-              })
-              .onErrorResume(error -> {
-                log.error("Failed to save or publish order {}. Releasing reserved stock.", ordToSave.getId(), error);
-                if (inventoryService != null) {
-                  return inventoryService.releaseForOrder(ordToSave.getId())
-                      .then(Mono.error(error));
-                }
-                return Mono.error(error);
-              })
-              .map(orderMapper::toResponse);
+          Mono<TacoOrder> reservedOrderMono = inventoryService != null
+              ? inventoryService.reserve(pricedOrder).thenReturn(pricedOrder)
+              : Mono.just(pricedOrder);
+
+          return reservedOrderMono.flatMap(ordToSave -> {
+            Mono<TacoOrder> orderWithUser;
+            if (authentication != null && authentication.getName() != null && userRepo != null) {
+              orderWithUser = userRepo.findByUsername(authentication.getName())
+                  .map(u -> {
+                    ordToSave.setUser(u);
+                    return ordToSave;
+                  })
+                  .defaultIfEmpty(ordToSave);
+            } else {
+              orderWithUser = Mono.just(ordToSave);
+            }
+
+            return orderWithUser
+                .flatMap(repo::save)
+                .doOnNext(saved -> {
+                  log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
+                      saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
+                  orderMessages.sendOrder(saved);
+                })
+                .onErrorResume(error -> {
+                  log.error("Failed to save or publish order {}. Releasing reserved stock.", ordToSave.getId(), error);
+                  if (inventoryService != null) {
+                    return inventoryService.releaseForOrder(ordToSave.getId())
+                        .then(Mono.error(error));
+                  }
+                  return Mono.error(error);
+                })
+                .map(orderMapper::toResponse);
+          });
         });
       });
-    });
+    }));
   }
 
   // TC-07: Una sola suscripción para guardar y publicar (save-then-send)

@@ -1,5 +1,6 @@
 package tacos.web.api;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -23,7 +24,10 @@ import tacos.Taco;
 import tacos.classification.TacoClassificationService;
 import tacos.data.IngredientRepository;
 import tacos.data.TacoRepository;
+import tacos.physics.TacoDesignValidator;
 import tacos.web.api.dto.TacoClassificationResponse;
+import tacos.web.api.dto.TacoDesignRequest;
+import tacos.web.api.dto.TacoDesignValidationResponse;
 
 @RestController
 @RequestMapping(path = "/api/tacos", produces = "application/json")
@@ -33,18 +37,27 @@ public class TacoController {
   private final TacoRepository tacoRepo;
   private final TacoClassificationService classificationService;
   private final IngredientRepository ingredientRepo;
+  private final TacoDesignValidator designValidator;
 
   @Autowired
   public TacoController(TacoRepository tacoRepo,
                         TacoClassificationService classificationService,
-                        IngredientRepository ingredientRepo) {
+                        IngredientRepository ingredientRepo,
+                        TacoDesignValidator designValidator) {
     this.tacoRepo = tacoRepo;
     this.classificationService = classificationService != null ? classificationService : new TacoClassificationService(ingredientRepo, tacoRepo);
     this.ingredientRepo = ingredientRepo;
+    this.designValidator = designValidator;
+  }
+
+  public TacoController(TacoRepository tacoRepo,
+                        TacoClassificationService classificationService,
+                        IngredientRepository ingredientRepo) {
+    this(tacoRepo, classificationService, ingredientRepo, null);
   }
 
   public TacoController(TacoRepository tacoRepo) {
-    this(tacoRepo, new TacoClassificationService(null, tacoRepo), null);
+    this(tacoRepo, new TacoClassificationService(null, tacoRepo), null, null);
   }
 
   @GetMapping(params="recent")
@@ -59,24 +72,43 @@ public class TacoController {
       return Mono.empty();
     }
 
-    if (ingredientRepo != null && taco.getIngredients() != null && !taco.getIngredients().isEmpty()) {
-      List<String> ingredientIds = taco.getIngredients().stream()
-          .filter(Objects::nonNull)
-          .map(Ingredient::getId)
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList());
+    Mono<Void> validationMono = (designValidator != null)
+        ? designValidator.validateTacoAndThrow(taco)
+        : Mono.empty();
 
-      if (!ingredientIds.isEmpty()) {
-        return ingredientRepo.findAllById(ingredientIds)
-            .collectList()
-            .flatMap(officialIngredients -> {
-              taco.setIngredients(officialIngredients);
-              return tacoRepo.save(taco);
-            });
+    return validationMono.then(Mono.defer(() -> {
+      if (ingredientRepo != null && taco.getIngredients() != null && !taco.getIngredients().isEmpty()) {
+        List<String> ingredientIds = taco.getIngredients().stream()
+            .filter(Objects::nonNull)
+            .map(Ingredient::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        if (!ingredientIds.isEmpty()) {
+          return ingredientRepo.findAllById(ingredientIds)
+              .collectList()
+              .flatMap(officialIngredients -> {
+                taco.setIngredients(officialIngredients);
+                return tacoRepo.save(taco);
+              });
+        }
       }
-    }
 
-    return tacoRepo.save(taco);
+      return tacoRepo.save(taco);
+    }));
+  }
+
+  @PostMapping(path = "/validate", consumes = "application/json")
+  public Mono<TacoDesignValidationResponse> validateTacoDesign(@RequestBody TacoDesignRequest request) {
+    if (request == null) {
+      return Mono.just(TacoDesignValidationResponse.of(false, Collections.emptyList()));
+    }
+    List<String> rawIds = request.extractIngredientIds();
+    if (designValidator != null) {
+      return designValidator.validateDesign(request.getName(), rawIds)
+          .map(res -> TacoDesignValidationResponse.of(res.isValid(), res.getViolations()));
+    }
+    return Mono.just(TacoDesignValidationResponse.of(true, Collections.emptyList()));
   }
 
   @GetMapping("/{id}")

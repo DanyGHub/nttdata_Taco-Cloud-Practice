@@ -72,6 +72,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .antMatchers(HttpMethod.PUT, "/api/ingredients/**").hasRole("ADMIN")
         .antMatchers(HttpMethod.PATCH, "/api/ingredients/**").hasRole("ADMIN")
         .antMatchers(HttpMethod.DELETE, "/api/ingredients/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.POST, "/api/tacos/validate").permitAll()
 
         // 8. Mutaciones de tacos
         .antMatchers(HttpMethod.POST, "/api/tacos/**").hasAnyRole("USER", "ADMIN")

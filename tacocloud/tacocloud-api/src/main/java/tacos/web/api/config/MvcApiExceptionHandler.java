@@ -95,6 +95,28 @@ public class MvcApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler(tacos.physics.InvalidTacoDesignException.class)
+  public ResponseEntity<ApiProblem> handleInvalidTacoDesignException(tacos.physics.InvalidTacoDesignException ex, HttpServletRequest request) {
+    String instance = request != null ? request.getRequestURI() : "/";
+    List<Violation> violations = ex.getViolations().stream()
+        .map(v -> new Violation(v.getField(), "[" + v.getCode() + "] " + v.getMessage()))
+        .collect(Collectors.toList());
+
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        ex.getCode(),
+        "Invalid Taco Design",
+        ex.getMessage(),
+        instance,
+        violations
+    );
+    problem.setType(URI.create("urn:problem-type:invalid-taco-design"));
+
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(tacos.inventory.InsufficientStockException.class)
   public ResponseEntity<ApiProblem> handleInsufficientStockException(tacos.inventory.InsufficientStockException ex, HttpServletRequest request) {
     String instance = request != null ? request.getRequestURI() : "/";
