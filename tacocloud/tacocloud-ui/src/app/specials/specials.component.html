@@ -32,3 +32,36 @@
   <p>{{errorMessage || 'No hay tacos disponibles para el día de hoy.'}}</p>
 </div>
 
+<hr style="margin: 30px 0; border: 0; border-top: 2px dashed #ffc107;"/>
+
+<cloud-title>Top Tacos: Los Más Populares</cloud-title>
+
+<div *ngIf="loadingTop">
+  <p>Cargando ranking de tacos...</p>
+</div>
+
+<div *ngIf="!loadingTop && topTacos && topTacos.length > 0">
+  <div class="recentsblock">
+    <div class="tacoblock" *ngFor="let item of topTacos" style="position: relative;">
+      <div style="font-weight: bold; font-size: 1.2em; color: #d9534f; margin-bottom: 5px;">
+        #{{item.rank}} en Ranking
+      </div>
+      <div class="tacoName"><span class="small">The</span><br/>"{{item.taco ? item.taco.name : 'Taco Especial'}}"</div>
+      <div style="color: #f39c12; font-size: 1.1em; margin: 5px 0;">
+        ★ {{item.averageScore | number:'1.1-2'}} / 5.0
+        <span style="font-size: 0.85em; color: #777;">({{item.totalVotes}} {{item.totalVotes === 1 ? 'voto' : 'votos'}})</span>
+      </div>
+      <div class="tacoDesc" *ngIf="item.taco && item.taco.ingredients">
+        <ul class="commalist">
+          <li *ngFor="let ingredient of item.taco.ingredients | nonwraps">{{ingredient.name}}</li>
+        </ul>
+      </div>
+      <little-button label="Order this taco"></little-button>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="!loadingTop && (!topTacos || topTacos.length === 0)">
+  <p>Aún no hay suficientes calificaciones para mostrar el ranking.</p>
+</div>
+

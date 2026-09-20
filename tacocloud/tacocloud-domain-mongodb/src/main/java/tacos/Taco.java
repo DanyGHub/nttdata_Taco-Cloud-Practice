@@ -53,4 +53,6 @@ public class Taco {
   @Indexed
   private SpiceLevel spiceLevel = SpiceLevel.NONE;
 
+  private boolean published = true;
+
 }

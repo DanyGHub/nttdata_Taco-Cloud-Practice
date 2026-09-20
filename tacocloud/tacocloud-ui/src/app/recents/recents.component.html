@@ -23,5 +23,21 @@
           {{ isFavorite(taco.id) ? '★ Favorito' : '☆ Marcar Favorito' }}
         </button>
       </div>
+      <div style="margin-top: 8px; font-size: 0.9em;">
+        <span style="color: #f39c12; font-weight: bold;">
+          ★ {{ (getRating(taco.id)?.averageScore || 0) | number:'1.1-2' }}
+        </span>
+        <span style="color: #777; font-size: 0.85em;">
+          ({{ getRating(taco.id)?.totalVotes || 0 }} {{ (getRating(taco.id)?.totalVotes === 1) ? 'voto' : 'votos' }})
+        </span>
+        <div style="margin-top: 4px;">
+          <small>Calificar: </small>
+          <button type="button" *ngFor="let s of [1, 2, 3, 4, 5]" (click)="rateTaco(taco.id, s)"
+                  [style.font-weight]="getRating(taco.id)?.userScore === s ? 'bold' : 'normal'"
+                  style="margin: 0 1px; padding: 2px 5px; font-size: 0.8em; cursor: pointer;">
+            {{s}}★
+          </button>
+        </div>
+      </div>
   </div>
 </div>

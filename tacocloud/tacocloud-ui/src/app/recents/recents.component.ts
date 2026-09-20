@@ -12,14 +12,53 @@ import { HttpClient } from '@angular/common/http';
 export class RecentTacosComponent implements OnInit {
   recentTacos: any;
   favoriteIds: string[] = [];
+  ratings: { [key: string]: any } = {};
 
   constructor(private httpClient: HttpClient) { }
 
   ngOnInit() {
     this.httpClient.get('http://localhost:8080/api/tacos')
-        .subscribe((data: any) => this.recentTacos = (data && data.content) ? data.content : data);
+        .subscribe((data: any) => {
+          this.recentTacos = (data && data.content) ? data.content : data;
+          if (Array.isArray(this.recentTacos)) {
+            this.recentTacos.forEach((taco: any) => {
+              if (taco && taco.id) {
+                this.loadRating(taco.id);
+              }
+            });
+          }
+        });
 
     this.loadFavorites();
+  }
+
+  loadRating(tacoId: string) {
+    this.httpClient.get('http://localhost:8080/api/tacos/' + tacoId + '/rating', { withCredentials: true })
+        .subscribe(
+          (data: any) => {
+            this.ratings[tacoId] = data;
+          },
+          () => {}
+        );
+  }
+
+  rateTaco(tacoId: string, score: number) {
+    if (!tacoId || score < 1 || score > 5) return;
+    this.httpClient.put('http://localhost:8080/api/tacos/' + tacoId + '/rating', { score: score }, { withCredentials: true })
+        .subscribe(
+          (data: any) => {
+            this.ratings[tacoId] = data;
+          },
+          (err: any) => {
+            if (err && err.status === 401) {
+              alert('Debes iniciar sesión para calificar este taco.');
+            }
+          }
+        );
+  }
+
+  getRating(tacoId: string): any {
+    return this.ratings[tacoId] || null;
   }
 
   loadFavorites() {
