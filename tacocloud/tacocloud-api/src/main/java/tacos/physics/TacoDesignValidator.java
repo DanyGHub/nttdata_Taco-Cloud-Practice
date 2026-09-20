@@ -111,6 +111,28 @@ public class TacoDesignValidator {
     return validateAndThrow(taco.getName(), rawIngredientIds);
   }
 
+  /**
+   * Valida un Taco de dominio y retorna el resultado de validación.
+   */
+  public Mono<TacoDesignValidationResult> validateTaco(Taco taco) {
+    if (taco == null) {
+      return Mono.just(new TacoDesignValidationResult(false, Collections.singletonList(
+          DesignViolation.of("NULL_TACO", "Taco cannot be null", "taco")
+      )));
+    }
+
+    List<String> rawIngredientIds = Collections.emptyList();
+    if (taco.getIngredients() != null) {
+      rawIngredientIds = taco.getIngredients().stream()
+          .filter(Objects::nonNull)
+          .map(Ingredient::getId)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+    }
+
+    return validateDesign(taco.getName(), rawIngredientIds);
+  }
+
   public List<TacoDesignRule> getRules() {
     return rules;
   }

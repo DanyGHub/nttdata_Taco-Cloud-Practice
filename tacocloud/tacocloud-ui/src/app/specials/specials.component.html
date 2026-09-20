@@ -1,1 +1,34 @@
-<cloud-title>Check out some of our specials!</cloud-title>
+<cloud-title>Taco del Día</cloud-title>
+
+<div *ngIf="loading">
+  <p>Cargando la recomendación especial de hoy...</p>
+</div>
+
+<div *ngIf="!loading && special">
+  <h3>{{special.reason}}</h3>
+  <p><strong>Fecha:</strong> {{special.date}}</p>
+  
+  <div class="recentsblock" *ngIf="special.taco">
+    <div class="tacoblock">
+      <div class="tacoName"><span class="small">The</span><br/>"{{special.taco.name}}"</div>
+      <div class="tacoDesc">
+        <ul class="commalist">
+          <li *ngFor="let ingredient of special.taco.ingredients | nonwraps">{{ingredient.name}}</li>
+        </ul>
+        <div *ngIf="(special.taco.ingredients | wraps)?.length > 0">
+          <span>wrapped in</span>
+          <ul class="commalist">
+            <li *ngFor="let ingredient of special.taco.ingredients | wraps">{{ingredient.name}}</li>
+          </ul>
+        </div>
+        <div *ngIf="(special.taco.ingredients | wraps)?.length == 0">in a bowl</div>
+      </div>
+      <little-button label="Order this taco"></little-button>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="!loading && !special">
+  <p>{{errorMessage || 'No hay tacos disponibles para el día de hoy.'}}</p>
+</div>
+

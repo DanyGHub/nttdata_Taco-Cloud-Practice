@@ -1,5 +1,6 @@
 package tacos.web.api;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -33,12 +34,14 @@ import tacos.data.IngredientRepository;
 import tacos.data.TacoEntityCallback;
 import tacos.data.TacoRepository;
 import tacos.physics.TacoDesignValidator;
+import tacos.recommendation.TacoOfTheDayService;
 import tacos.search.TacoPage;
 import tacos.search.TacoSearchCriteria;
 import tacos.web.api.dto.IngredientMapper;
 import tacos.web.api.dto.TacoClassificationResponse;
 import tacos.web.api.dto.TacoDesignRequest;
 import tacos.web.api.dto.TacoDesignValidationResponse;
+import tacos.web.api.dto.TacoOfTheDayResponse;
 import tacos.web.api.dto.TacoResponse;
 
 @RestController
@@ -51,6 +54,7 @@ public class TacoController {
   private final IngredientRepository ingredientRepo;
   private final TacoDesignValidator designValidator;
   private final IngredientMapper ingredientMapper;
+  private final TacoOfTheDayService tacoOfTheDayService;
   private final int maxPageSize;
 
   @Autowired
@@ -59,12 +63,14 @@ public class TacoController {
                         IngredientRepository ingredientRepo,
                         TacoDesignValidator designValidator,
                         IngredientMapper ingredientMapper,
+                        TacoOfTheDayService tacoOfTheDayService,
                         @Value("${taco.search.max-page-size:50}") int maxPageSize) {
     this.tacoRepo = tacoRepo;
     this.classificationService = classificationService != null ? classificationService : new TacoClassificationService(ingredientRepo, tacoRepo);
     this.ingredientRepo = ingredientRepo;
     this.designValidator = designValidator;
     this.ingredientMapper = ingredientMapper != null ? ingredientMapper : new IngredientMapper();
+    this.tacoOfTheDayService = tacoOfTheDayService != null ? tacoOfTheDayService : new TacoOfTheDayService(tacoRepo, ingredientRepo, designValidator, this.classificationService, this.ingredientMapper, Clock.systemDefaultZone(), "America/Mexico_City");
     this.maxPageSize = maxPageSize > 0 ? maxPageSize : 50;
   }
 
@@ -72,17 +78,21 @@ public class TacoController {
                         TacoClassificationService classificationService,
                         IngredientRepository ingredientRepo,
                         TacoDesignValidator designValidator) {
-    this(tacoRepo, classificationService, ingredientRepo, designValidator, new IngredientMapper(), 50);
+    this(tacoRepo, classificationService, ingredientRepo, designValidator, new IngredientMapper(), null, 50);
   }
 
   public TacoController(TacoRepository tacoRepo,
                         TacoClassificationService classificationService,
                         IngredientRepository ingredientRepo) {
-    this(tacoRepo, classificationService, ingredientRepo, null, new IngredientMapper(), 50);
+    this(tacoRepo, classificationService, ingredientRepo, null, new IngredientMapper(), null, 50);
+  }
+
+  public TacoController(TacoRepository tacoRepo, TacoOfTheDayService tacoOfTheDayService) {
+    this(tacoRepo, new TacoClassificationService(null, tacoRepo), null, null, new IngredientMapper(), tacoOfTheDayService, 50);
   }
 
   public TacoController(TacoRepository tacoRepo) {
-    this(tacoRepo, new TacoClassificationService(null, tacoRepo), null, null, new IngredientMapper(), 50);
+    this(tacoRepo, new TacoClassificationService(null, tacoRepo), null, null, new IngredientMapper(), null, 50);
   }
 
   @GetMapping
@@ -178,6 +188,16 @@ public class TacoController {
           .map(res -> TacoDesignValidationResponse.of(res.isValid(), res.getViolations()));
     }
     return Mono.just(TacoDesignValidationResponse.of(true, Collections.emptyList()));
+  }
+
+  @GetMapping("/today")
+  public Mono<ResponseEntity<TacoOfTheDayResponse>> getTacoOfTheDay() {
+    if (tacoOfTheDayService == null) {
+      return Mono.just(ResponseEntity.notFound().build());
+    }
+    return tacoOfTheDayService.getTacoOfTheDay()
+        .map(ResponseEntity::ok)
+        .defaultIfEmpty(ResponseEntity.notFound().build());
   }
 
   @GetMapping("/{id}")

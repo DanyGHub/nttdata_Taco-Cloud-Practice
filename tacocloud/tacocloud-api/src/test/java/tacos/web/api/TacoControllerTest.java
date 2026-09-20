@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,8 +21,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import tacos.classification.Allergen;
 import tacos.classification.DietaryTag;
 import tacos.classification.SpiceLevel;
+import tacos.recommendation.TacoOfTheDayService;
 import tacos.search.TacoPage;
 import tacos.search.TacoSearchCriteria;
+import tacos.web.api.dto.TacoOfTheDayResponse;
+import tacos.web.api.dto.TacoResponse;
 
 
 import reactor.core.publisher.Flux;
@@ -188,6 +192,51 @@ public class TacoControllerTest {
     testClient.get().uri("/api/tacos?sort=hackerField,asc")
         .exchange()
         .expectStatus().isBadRequest();
+  }
+
+  @Test
+  public void shouldReturnTacoOfTheDayWhenAvailable() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    TacoOfTheDayService tacoOfTheDayService = Mockito.mock(TacoOfTheDayService.class);
+
+    TacoResponse tacoResp = new TacoResponse();
+    tacoResp.setId("special-1");
+    tacoResp.setName("Carnitas Especial");
+
+    TacoOfTheDayResponse specialResponse = TacoOfTheDayResponse.builder()
+        .taco(tacoResp)
+        .date(LocalDate.parse("2026-09-20"))
+        .reason("Recomendación del día porque hoy es Domingo: receta destacada.")
+        .build();
+
+    when(tacoOfTheDayService.getTacoOfTheDay()).thenReturn(Mono.just(specialResponse));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo, tacoOfTheDayService)).build();
+
+    testClient.get().uri("/api/tacos/today")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.date").isEqualTo("2026-09-20")
+        .jsonPath("$.taco.id").isEqualTo("special-1")
+        .jsonPath("$.taco.name").isEqualTo("Carnitas Especial")
+        .jsonPath("$.reason").isEqualTo("Recomendación del día porque hoy es Domingo: receta destacada.");
+  }
+
+  @Test
+  public void shouldReturnNotFoundWhenNoTacoOfTheDay() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    TacoOfTheDayService tacoOfTheDayService = Mockito.mock(TacoOfTheDayService.class);
+
+    when(tacoOfTheDayService.getTacoOfTheDay()).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo, tacoOfTheDayService)).build();
+
+    testClient.get().uri("/api/tacos/today")
+        .exchange()
+        .expectStatus().isNotFound();
   }
 
   private Taco testTaco(Long number) {
