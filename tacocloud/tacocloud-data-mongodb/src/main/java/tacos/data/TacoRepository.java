@@ -6,6 +6,6 @@ import tacos.Taco;
 
 
 public interface TacoRepository 
-         extends ReactiveCrudRepository<Taco, String> {
+         extends ReactiveCrudRepository<Taco, String>, TacoRepositoryCustom {
 
 }

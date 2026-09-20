@@ -1,17 +1,27 @@
 package tacos.web.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
+import tacos.classification.Allergen;
+import tacos.classification.DietaryTag;
+import tacos.classification.SpiceLevel;
+import tacos.search.TacoPage;
+import tacos.search.TacoSearchCriteria;
 
 
 import reactor.core.publisher.Flux;
@@ -82,6 +92,103 @@ public class TacoControllerTest {
         .isEqualTo(savedTaco);
   }
 
+  @Test
+  public void shouldSearchTacosWithDefaultParameters() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    Taco taco = testTaco(1L);
+    TacoPage<Taco> mockPage = TacoPage.of(Collections.singletonList(taco), 0, 20, 1L);
+
+    when(tacoRepo.searchTacos(any())).thenReturn(Mono.just(mockPage));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get().uri("/api/tacos")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.page").isEqualTo(0)
+        .jsonPath("$.size").isEqualTo(20)
+        .jsonPath("$.totalElements").isEqualTo(1)
+        .jsonPath("$.totalPages").isEqualTo(1)
+        .jsonPath("$.first").isEqualTo(true)
+        .jsonPath("$.last").isEqualTo(true)
+        .jsonPath("$.content[0].name").isEqualTo("Taco 1");
+  }
+
+  @Test
+  public void shouldPassSearchCriteriaParameters() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    TacoPage<Taco> emptyPage = TacoPage.of(Collections.<Taco>emptyList(), 1, 10, 0L);
+
+    ArgumentCaptor<TacoSearchCriteria> captor = ArgumentCaptor.forClass(TacoSearchCriteria.class);
+    when(tacoRepo.searchTacos(captor.capture())).thenReturn(Mono.just(emptyPage));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get()
+        .uri("/api/tacos?name=Carnitas&ingredientId=CARN&diet=GLUTEN_FREE&excludeAllergen=DAIRY&spice=MEDIUM&page=1&size=10&sort=name,asc")
+        .exchange()
+        .expectStatus().isOk();
+
+    TacoSearchCriteria criteria = captor.getValue();
+    assertThat(criteria.getName()).isEqualTo("Carnitas");
+    assertThat(criteria.getIngredientId()).isEqualTo("CARN");
+    assertThat(criteria.getDiet()).isEqualTo(DietaryTag.GLUTEN_FREE);
+    assertThat(criteria.getExcludeAllergen()).isEqualTo(Allergen.DAIRY);
+    assertThat(criteria.getSpice()).isEqualTo(SpiceLevel.MEDIUM);
+    assertThat(criteria.getPage()).isEqualTo(1);
+    assertThat(criteria.getSize()).isEqualTo(10);
+    assertThat(criteria.getSort()).isEqualTo("name,asc");
+  }
+
+  @Test
+  public void shouldRejectNegativePage() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get().uri("/api/tacos?page=-1")
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test
+  public void shouldRejectZeroOrNegativeSize() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get().uri("/api/tacos?size=0")
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test
+  public void shouldRejectExceedingMaxPageSize() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get().uri("/api/tacos?size=51")
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
+
+  @Test
+  public void shouldRejectInvalidSortField() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    when(tacoRepo.searchTacos(any()))
+        .thenReturn(Mono.error(new IllegalArgumentException("Invalid sort field: hackerField")));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new TacoController(tacoRepo)).build();
+
+    testClient.get().uri("/api/tacos?sort=hackerField,asc")
+        .exchange()
+        .expectStatus().isBadRequest();
+  }
 
   private Taco testTaco(Long number) {
     Taco taco = new Taco();

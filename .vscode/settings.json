@@ -1,3 +1,4 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "typescript.tsdk": "tacocloud/tacocloud-ui/node_modules/typescript/lib"
 }
