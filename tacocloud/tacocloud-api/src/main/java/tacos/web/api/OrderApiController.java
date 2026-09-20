@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +19,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import javax.validation.Valid;
+
+import tacos.order.OrderApplicationService;
+import tacos.web.api.dto.ReorderRequest;
+import tacos.web.api.dto.ReorderResponse;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -73,6 +78,7 @@ public class OrderApiController {
   private PricingService pricingService;
   private InventoryService inventoryService;
   private TacoDesignValidator designValidator;
+  private OrderApplicationService orderApplicationService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -84,7 +90,8 @@ public class OrderApiController {
                             PaymentGateway paymentGateway,
                             PricingService pricingService,
                             InventoryService inventoryService,
-                            TacoDesignValidator designValidator) {
+                            TacoDesignValidator designValidator,
+                            @Autowired(required = false) OrderApplicationService orderApplicationService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -95,6 +102,20 @@ public class OrderApiController {
     this.pricingService = pricingService;
     this.inventoryService = inventoryService;
     this.designValidator = designValidator;
+    this.orderApplicationService = orderApplicationService;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService,
+                            InventoryService inventoryService,
+                            TacoDesignValidator designValidator) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -522,12 +543,17 @@ public class OrderApiController {
     );
   }
 
-  // @DeleteMapping("/{orderId}")
-  // @ResponseStatus(HttpStatus.NO_CONTENT)
-  // public void deleteOrder(@PathVariable("orderId") String orderId) {
-  //   try {
-  //     repo.deleteById(orderId);
-  //   } catch (EmptyResultDataAccessException e) {}
-  // }
+  @PostMapping(path="/{id}/reorder", consumes="application/json")
+  public Mono<ResponseEntity<ReorderResponse>> reorder(
+      @PathVariable("id") String orderId,
+      @RequestBody(required = false) ReorderRequest request,
+      @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKeyHeader,
+      Authentication authentication) {
+    OrderApplicationService svc = this.orderApplicationService;
+    if (svc == null) {
+      svc = new OrderApplicationService(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, pricingService, inventoryService, designValidator, null);
+    }
+    return svc.reorder(orderId, request, authentication, idempotencyKeyHeader);
+  }
 
 }

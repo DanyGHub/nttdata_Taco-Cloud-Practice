@@ -7,6 +7,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.Data;
@@ -19,6 +20,9 @@ public class TacoOrder implements Serializable {
   @Id
   private String id;
   private Date placedAt = new Date();
+
+  @Indexed(sparse = true)
+  private String idempotencyKey;
 
   private User user;
 
