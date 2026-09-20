@@ -22,6 +22,10 @@ public class Ingredient {
   private int stockOnHand = 0;
   private int reorderLevel = 0;
 
+  private java.util.Set<tacos.classification.DietaryTag> dietaryTags = new java.util.LinkedHashSet<>();
+  private java.util.Set<tacos.classification.Allergen> allergens = new java.util.LinkedHashSet<>();
+  private tacos.classification.SpiceLevel spiceLevel = tacos.classification.SpiceLevel.NONE;
+
   @Version
   private Long version;
 
@@ -33,6 +37,11 @@ public class Ingredient {
   }
 
   public Ingredient(String id, String name, Type type, BigDecimal unitPrice, boolean available, int stockOnHand, int reorderLevel, Long version) {
+    this(id, name, type, unitPrice, available, stockOnHand, reorderLevel, version, null, null, null);
+  }
+
+  public Ingredient(String id, String name, Type type, BigDecimal unitPrice, boolean available, int stockOnHand, int reorderLevel, Long version,
+                    java.util.Set<tacos.classification.DietaryTag> dietaryTags, java.util.Set<tacos.classification.Allergen> allergens, tacos.classification.SpiceLevel spiceLevel) {
     this.id = id;
     this.name = name;
     this.type = type;
@@ -41,6 +50,9 @@ public class Ingredient {
     this.stockOnHand = stockOnHand;
     this.reorderLevel = reorderLevel;
     this.version = version;
+    if (dietaryTags != null) this.dietaryTags = new java.util.LinkedHashSet<>(dietaryTags);
+    if (allergens != null) this.allergens = new java.util.LinkedHashSet<>(allergens);
+    if (spiceLevel != null) this.spiceLevel = spiceLevel;
   }
 
   public enum Type {

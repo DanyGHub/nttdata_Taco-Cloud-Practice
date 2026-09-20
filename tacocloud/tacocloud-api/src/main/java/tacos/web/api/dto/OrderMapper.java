@@ -12,17 +12,26 @@ import tacos.OrderItem;
 import tacos.Taco;
 import tacos.TacoOrder;
 
+import tacos.classification.TacoClassification;
+import tacos.classification.TacoClassificationService;
+
 @Component
 public class OrderMapper {
 
   private final IngredientMapper ingredientMapper;
+  private final TacoClassificationService classificationService;
+
+  public OrderMapper(IngredientMapper ingredientMapper, TacoClassificationService classificationService) {
+    this.ingredientMapper = ingredientMapper != null ? ingredientMapper : new IngredientMapper();
+    this.classificationService = classificationService != null ? classificationService : new TacoClassificationService();
+  }
 
   public OrderMapper(IngredientMapper ingredientMapper) {
-    this.ingredientMapper = ingredientMapper;
+    this(ingredientMapper, new TacoClassificationService());
   }
 
   public OrderMapper() {
-    this.ingredientMapper = new IngredientMapper();
+    this(new IngredientMapper(), new TacoClassificationService());
   }
 
   public TacoOrder toDomain(OrderCreateRequest request) {
@@ -160,6 +169,14 @@ public class OrderMapper {
           .map(ingredientMapper::toResponse)
           .collect(Collectors.toList());
       response.setIngredients(ingResponses);
+
+      if (classificationService != null) {
+        TacoClassification classification = classificationService.classify(taco.getIngredients());
+        response.setDietaryTags(classification.getDietaryTags());
+        response.setAllergens(classification.getAllergens());
+        response.setSpiceLevel(classification.getSpiceLevel());
+        response.setDisclaimer(classification.getDisclaimer());
+      }
     }
     return response;
   }

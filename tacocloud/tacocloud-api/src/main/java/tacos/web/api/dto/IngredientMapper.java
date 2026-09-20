@@ -60,7 +60,10 @@ public class IngredientMapper {
         entity.getName(),
         entity.getType(),
         entity.getUnitPrice(),
-        entity.isAvailable()
+        entity.isAvailable(),
+        entity.getDietaryTags() != null ? entity.getDietaryTags() : java.util.Collections.emptySet(),
+        entity.getAllergens() != null ? entity.getAllergens() : java.util.Collections.emptySet(),
+        entity.getSpiceLevel() != null ? entity.getSpiceLevel() : tacos.classification.SpiceLevel.NONE
     );
   }
 
@@ -76,7 +79,10 @@ public class IngredientMapper {
         entity.isAvailable(),
         entity.getStockOnHand(),
         entity.getReorderLevel(),
-        entity.getVersion()
+        entity.getVersion(),
+        entity.getDietaryTags() != null ? entity.getDietaryTags() : java.util.Collections.emptySet(),
+        entity.getAllergens() != null ? entity.getAllergens() : java.util.Collections.emptySet(),
+        entity.getSpiceLevel() != null ? entity.getSpiceLevel() : tacos.classification.SpiceLevel.NONE
     );
   }
 

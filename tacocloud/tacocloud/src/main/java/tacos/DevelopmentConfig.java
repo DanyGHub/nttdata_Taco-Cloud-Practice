@@ -33,16 +33,46 @@ public class DevelopmentConfig {
     return new CommandLineRunner() {
       @Override
       public void run(String... args) throws Exception {
-        Ingredient flourTortilla = saveAnIngredient("FLTO", "Flour Tortilla", Type.WRAP, new BigDecimal("0.79"), 100, 15);
-        Ingredient cornTortilla = saveAnIngredient("COTO", "Corn Tortilla", Type.WRAP, new BigDecimal("0.79"), 100, 15);
-        Ingredient groundBeef = saveAnIngredient("GRBF", "Ground Beef", Type.PROTEIN, new BigDecimal("1.50"), 80, 10);
-        Ingredient carnitas = saveAnIngredient("CARN", "Carnitas", Type.PROTEIN, new BigDecimal("1.50"), 80, 10);
-        Ingredient tomatoes = saveAnIngredient("TMTO", "Diced Tomatoes", Type.VEGGIES, new BigDecimal("0.50"), 120, 20);
-        Ingredient lettuce = saveAnIngredient("LETC", "Lettuce", Type.VEGGIES, new BigDecimal("0.50"), 120, 20);
-        Ingredient cheddar = saveAnIngredient("CHED", "Cheddar", Type.CHEESE, new BigDecimal("0.65"), 90, 15);
-        Ingredient jack = saveAnIngredient("JACK", "Monterrey Jack", Type.CHEESE, new BigDecimal("0.65"), 90, 15);
-        Ingredient salsa = saveAnIngredient("SLSA", "Salsa", Type.SAUCE, new BigDecimal("0.35"), 150, 25);
-        Ingredient sourCream = saveAnIngredient("SRCR", "Sour Cream", Type.SAUCE, new BigDecimal("0.35"), 150, 25);
+        Ingredient flourTortilla = saveAnIngredient("FLTO", "Flour Tortilla", Type.WRAP, new BigDecimal("0.79"), 100, 15,
+            setOf(tacos.classification.DietaryTag.VEGAN, tacos.classification.DietaryTag.VEGETARIAN),
+            setOf(tacos.classification.Allergen.GLUTEN),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient cornTortilla = saveAnIngredient("COTO", "Corn Tortilla", Type.WRAP, new BigDecimal("0.79"), 100, 15,
+            setOf(tacos.classification.DietaryTag.VEGAN, tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient groundBeef = saveAnIngredient("GRBF", "Ground Beef", Type.PROTEIN, new BigDecimal("1.50"), 80, 10,
+            setOf(tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient carnitas = saveAnIngredient("CARN", "Carnitas", Type.PROTEIN, new BigDecimal("1.50"), 80, 10,
+            setOf(tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.MILD);
+        Ingredient tomatoes = saveAnIngredient("TMTO", "Diced Tomatoes", Type.VEGGIES, new BigDecimal("0.50"), 120, 20,
+            setOf(tacos.classification.DietaryTag.VEGAN, tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient lettuce = saveAnIngredient("LETC", "Lettuce", Type.VEGGIES, new BigDecimal("0.50"), 120, 20,
+            setOf(tacos.classification.DietaryTag.VEGAN, tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient cheddar = saveAnIngredient("CHED", "Cheddar", Type.CHEESE, new BigDecimal("0.65"), 90, 15,
+            setOf(tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            setOf(tacos.classification.Allergen.DAIRY),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient jack = saveAnIngredient("JACK", "Monterrey Jack", Type.CHEESE, new BigDecimal("0.65"), 90, 15,
+            setOf(tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            setOf(tacos.classification.Allergen.DAIRY),
+            tacos.classification.SpiceLevel.NONE);
+        Ingredient salsa = saveAnIngredient("SLSA", "Salsa", Type.SAUCE, new BigDecimal("0.35"), 150, 25,
+            setOf(tacos.classification.DietaryTag.VEGAN, tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            java.util.Collections.emptySet(),
+            tacos.classification.SpiceLevel.MEDIUM);
+        Ingredient sourCream = saveAnIngredient("SRCR", "Sour Cream", Type.SAUCE, new BigDecimal("0.35"), 150, 25,
+            setOf(tacos.classification.DietaryTag.VEGETARIAN, tacos.classification.DietaryTag.GLUTEN_FREE),
+            setOf(tacos.classification.Allergen.DAIRY),
+            tacos.classification.SpiceLevel.NONE);
         
         userRepo.findByUsername("habuma")
             .flatMap(existing -> {
@@ -104,10 +134,22 @@ public class DevelopmentConfig {
 
       }
 
-      private Ingredient saveAnIngredient(String id, String name, Type type, BigDecimal price, int stock, int reorder) {
-        Ingredient ingredient = new Ingredient(id, name, type, price, true, stock, reorder, null);
+      @SafeVarargs
+      private final <T> java.util.Set<T> setOf(T... items) {
+        return new java.util.LinkedHashSet<>(Arrays.asList(items));
+      }
+
+      private Ingredient saveAnIngredient(String id, String name, Type type, BigDecimal price, int stock, int reorder,
+                                          java.util.Set<tacos.classification.DietaryTag> tags,
+                                          java.util.Set<tacos.classification.Allergen> allergens,
+                                          tacos.classification.SpiceLevel spice) {
+        Ingredient ingredient = new Ingredient(id, name, type, price, true, stock, reorder, null, tags, allergens, spice);
         repo.save(ingredient).subscribe();
         return ingredient;
+      }
+
+      private Ingredient saveAnIngredient(String id, String name, Type type, BigDecimal price, int stock, int reorder) {
+        return saveAnIngredient(id, name, type, price, stock, reorder, java.util.Collections.emptySet(), java.util.Collections.emptySet(), tacos.classification.SpiceLevel.NONE);
       }
 
       private Ingredient saveAnIngredient(String id, String name, Type type) {
