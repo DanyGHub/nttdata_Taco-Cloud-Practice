@@ -85,7 +85,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         // 10. Pedidos / Órdenes (API y Vistas Web), Métodos de Pago y Cupones
         .antMatchers("/api/coupons/**", "/api/payment-methods/**", "/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN")
 
-        // 11. TC-11 Regla final: Deny-by-default
+        // 11. TC-21 Favoritos por usuario autenticado
+        .antMatchers("/api/users/me/**").hasAnyRole("USER", "ADMIN")
+
+        // 12. TC-11 Regla final: Deny-by-default
         .anyRequest().denyAll()
         
       .and()

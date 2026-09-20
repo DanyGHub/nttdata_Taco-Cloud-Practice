@@ -18,5 +18,10 @@
         <div *ngIf="(taco.ingredients | wraps)?.length == 0">in a bowl</div>
       </div>
       <little-button label="Order this taco"></little-button>
+      <div style="margin-top: 8px;">
+        <button type="button" class="btn btn-sm" (click)="toggleFavorite(taco)">
+          {{ isFavorite(taco.id) ? '★ Favorito' : '☆ Marcar Favorito' }}
+        </button>
+      </div>
   </div>
 </div>
