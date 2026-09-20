@@ -95,6 +95,23 @@ public class MvcApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler(tacos.inventory.InsufficientStockException.class)
+  public ResponseEntity<ApiProblem> handleInsufficientStockException(tacos.inventory.InsufficientStockException ex, HttpServletRequest request) {
+    String instance = request != null ? request.getRequestURI() : "/";
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.CONFLICT,
+        "INSUFFICIENT_STOCK",
+        "Insufficient Stock",
+        ex.getMessage(),
+        instance
+    );
+    problem.setType(URI.create("urn:problem-type:insufficient-stock"));
+
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(ResourceConflictException.class)
   public ResponseEntity<ApiProblem> handleResourceConflictException(ResourceConflictException ex, HttpServletRequest request) {
     String instance = request != null ? request.getRequestURI() : "/";
@@ -185,6 +202,9 @@ public class MvcApiExceptionHandler {
     while (current != null) {
       if (current instanceof ResponseStatusException) {
         return handleResponseStatusException((ResponseStatusException) current, request);
+      }
+      if (current instanceof tacos.inventory.InsufficientStockException) {
+        return handleInsufficientStockException((tacos.inventory.InsufficientStockException) current, request);
       }
       if (current instanceof ResourceConflictException) {
         return handleResourceConflictException((ResourceConflictException) current, request);

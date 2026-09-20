@@ -76,6 +76,23 @@ public class ApiExceptionHandler {
         .body(problem);
   }
 
+  @ExceptionHandler(tacos.inventory.InsufficientStockException.class)
+  public ResponseEntity<ApiProblem> handleInsufficientStockException(tacos.inventory.InsufficientStockException ex, ServerWebExchange exchange) {
+    String instance = getPath(exchange);
+    ApiProblem problem = ApiProblem.of(
+        HttpStatus.CONFLICT,
+        "INSUFFICIENT_STOCK",
+        "Insufficient Stock",
+        ex.getMessage(),
+        instance
+    );
+    problem.setType(URI.create("urn:problem-type:insufficient-stock"));
+
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .contentType(PROBLEM_JSON_MEDIA_TYPE)
+        .body(problem);
+  }
+
   @ExceptionHandler(ResourceConflictException.class)
   public ResponseEntity<ApiProblem> handleResourceConflictException(ResourceConflictException ex, ServerWebExchange exchange) {
     String instance = getPath(exchange);

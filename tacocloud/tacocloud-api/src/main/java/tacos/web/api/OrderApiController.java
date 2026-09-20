@@ -51,6 +51,9 @@ import tacos.web.api.dto.OrderQuoteRequest;
 import tacos.web.api.dto.OrderQuoteResponse;
 import tacos.web.api.dto.TacoRequest;
 
+import tacos.inventory.InventoryService;
+import org.bson.types.ObjectId;
+
 @RestController
 @RequestMapping(path="/api/orders",
                 produces="application/json")
@@ -67,6 +70,7 @@ public class OrderApiController {
   private PaymentMethodRepository paymentMethodRepo;
   private PaymentGateway paymentGateway;
   private PricingService pricingService;
+  private InventoryService inventoryService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -76,7 +80,8 @@ public class OrderApiController {
                             UserRepository userRepo,
                             PaymentMethodRepository paymentMethodRepo,
                             PaymentGateway paymentGateway,
-                            PricingService pricingService) {
+                            PricingService pricingService,
+                            InventoryService inventoryService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -85,6 +90,18 @@ public class OrderApiController {
     this.paymentMethodRepo = paymentMethodRepo;
     this.paymentGateway = paymentGateway;
     this.pricingService = pricingService;
+    this.inventoryService = inventoryService;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -253,26 +270,44 @@ public class OrderApiController {
           : Mono.just(ord);
 
       return orderWithPricing.flatMap(pricedOrder -> {
-        Mono<TacoOrder> orderWithUser;
-        if (authentication != null && authentication.getName() != null && userRepo != null) {
-          orderWithUser = userRepo.findByUsername(authentication.getName())
-              .map(u -> {
-                pricedOrder.setUser(u);
-                return pricedOrder;
-              })
-              .defaultIfEmpty(pricedOrder);
-        } else {
-          orderWithUser = Mono.just(pricedOrder);
+        if (pricedOrder.getId() == null || pricedOrder.getId().trim().isEmpty()) {
+          pricedOrder.setId(new ObjectId().toHexString());
         }
 
-        return orderWithUser
-            .flatMap(repo::save)
-            .doOnNext(saved -> {
-              log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
-                  saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
-              orderMessages.sendOrder(saved);
-            })
-            .map(orderMapper::toResponse);
+        Mono<TacoOrder> reservedOrderMono = inventoryService != null
+            ? inventoryService.reserve(pricedOrder).thenReturn(pricedOrder)
+            : Mono.just(pricedOrder);
+
+        return reservedOrderMono.flatMap(ordToSave -> {
+          Mono<TacoOrder> orderWithUser;
+          if (authentication != null && authentication.getName() != null && userRepo != null) {
+            orderWithUser = userRepo.findByUsername(authentication.getName())
+                .map(u -> {
+                  ordToSave.setUser(u);
+                  return ordToSave;
+                })
+                .defaultIfEmpty(ordToSave);
+          } else {
+            orderWithUser = Mono.just(ordToSave);
+          }
+
+          return orderWithUser
+              .flatMap(repo::save)
+              .doOnNext(saved -> {
+                log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
+                    saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
+                orderMessages.sendOrder(saved);
+              })
+              .onErrorResume(error -> {
+                log.error("Failed to save or publish order {}. Releasing reserved stock.", ordToSave.getId(), error);
+                if (inventoryService != null) {
+                  return inventoryService.releaseForOrder(ordToSave.getId())
+                      .then(Mono.error(error));
+                }
+                return Mono.error(error);
+              })
+              .map(orderMapper::toResponse);
+        });
       });
     });
   }
@@ -439,7 +474,12 @@ public class OrderApiController {
           if (!isOwner && !isAdmin)
             return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not authorized to delete this order")); // Status: 403
 
-          return repo.deleteById(orderId);
+          Mono<Void> releaseStockMono = inventoryService != null
+              ? inventoryService.releaseForOrder(orderId).then()
+              : Mono.empty();
+
+          return releaseStockMono
+              .then(repo.deleteById(orderId));
         })
         .thenReturn(ResponseEntity.noContent().<Void>build()) // Status: 204
     );
