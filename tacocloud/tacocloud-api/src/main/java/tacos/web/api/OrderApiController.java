@@ -153,20 +153,15 @@ public class OrderApiController {
 
   @GetMapping(produces="application/json")
   public Flux<OrderResponse> allOrders(Authentication authentication) {
-    boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
-        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    if (isAdmin) {
-      return repo.findAll().map(orderMapper::toResponse);
+    if (authentication != null) {
+      boolean isAdmin = authentication.getAuthorities().stream()
+          .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+      if (!isAdmin) {
+        return Flux.error(new ResponseStatusException(HttpStatus.FORBIDDEN,
+            "Direct access to /api/orders is restricted. Regular users must access orders via /api/users/me/orders"));
+      }
     }
-
-    String username = authentication != null ? authentication.getName() : null;
-    if (username == null || userRepo == null) {
-      return repo.findAll().map(orderMapper::toResponse);
-    }
-
-    return userRepo.findByUsername(username)
-        .flatMapMany(user -> repo.findByUserOrderByPlacedAtDesc(user, PageRequest.of(0, 50)))
-        .map(orderMapper::toResponse);
+    return repo.findAll().map(orderMapper::toResponse);
   }
 
   @GetMapping(path="/{orderId}", produces="application/json")

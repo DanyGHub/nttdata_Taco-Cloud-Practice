@@ -159,3 +159,74 @@
       <!-- <input type="submit" value="Submit order"/> -->
     </form>
 </div>
+
+<hr style="margin: 30px 0; border: 0; border-top: 1px dashed #76D6FF;"/>
+
+<div *ngIf="orderSuccessMessage" style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+  <b>{{orderSuccessMessage}}</b>
+</div>
+
+<div class="groupBox groupBoxFull" *ngIf="myOrders && myOrders.length > 0">
+  <div class="groupBoxTitle">My Order History (Private)</div>
+  <div class="groupBoxContent">
+    <table border="1" width="100%">
+      <thead>
+        <tr style="background-color: #e6f7ff;">
+          <th>Order ID</th>
+          <th>Placed At</th>
+          <th>Delivery Name</th>
+          <th>City, State</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let ord of myOrders">
+          <td><code>{{ord.id}}</code></td>
+          <td>{{ord.placedAt | date:'medium'}}</td>
+          <td>{{ord.deliveryName}}</td>
+          <td>{{ord.deliveryCity}}, {{ord.deliveryState}}</td>
+          <td align="center">{{ord.itemCount}}</td>
+          <td align="right">{{ord.totalCost | currency}}</td>
+          <td align="center">
+            <button type="button" (click)="viewOrderDetail(ord.id)">View Details</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="selectedOrderDetail" style="margin-top: 20px; padding: 15px; border: 1px solid #76D6FF; background-color: #fff; border-radius: 6px;">
+      <h4>Order Details: <code>{{selectedOrderDetail.id}}</code></h4>
+      <p><b>Placed At:</b> {{selectedOrderDetail.placedAt | date:'medium'}}</p>
+      <p><b>Delivery to:</b> {{selectedOrderDetail.deliveryName}}, {{selectedOrderDetail.deliveryStreet}}, {{selectedOrderDetail.deliveryCity}}, {{selectedOrderDetail.deliveryState}} {{selectedOrderDetail.deliveryZip}}</p>
+      <table border="1" width="100%">
+        <thead>
+          <tr style="background-color: #f2f2f2;">
+            <th>Taco</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of selectedOrderDetail.items">
+            <td>{{item.tacoName}}</td>
+            <td align="center">{{item.quantity}}</td>
+            <td align="right">{{item.unitPrice | currency}}</td>
+            <td align="right">{{item.lineTotal | currency}}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" align="right"><b>Total:</b></td>
+            <td align="right"><b>{{selectedOrderDetail.totalCost | currency}}</b></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="margin-top: 10px; text-align: right;">
+        <button type="button" (click)="closeOrderDetail()">Close Details</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -128,6 +128,88 @@ public class OrderMapper {
     return response;
   }
 
+  public OrderSummaryResponse toSummaryResponse(TacoOrder order) {
+    if (order == null) {
+      return null;
+    }
+
+    int itemCount = 0;
+    if (order.getItems() != null && !order.getItems().isEmpty()) {
+      itemCount = order.getItems().stream()
+          .filter(Objects::nonNull)
+          .mapToInt(item -> item.getQuantity() > 0 ? item.getQuantity() : 1)
+          .sum();
+    } else if (order.getTacos() != null) {
+      itemCount = order.getTacos().size();
+    }
+
+    return OrderSummaryResponse.builder()
+        .id(order.getId())
+        .placedAt(order.getPlacedAt())
+        .deliveryName(order.getDeliveryName())
+        .deliveryCity(order.getDeliveryCity())
+        .deliveryState(order.getDeliveryState())
+        .itemCount(itemCount)
+        .total(order.getTotal())
+        .currency(order.getCurrency() != null ? order.getCurrency() : "USD")
+        .brand(order.getBrand())
+        .last4(order.getLast4())
+        .status("COMPLETED")
+        .build();
+  }
+
+  public OrderDetailResponse toDetailResponse(TacoOrder order) {
+    if (order == null) {
+      return null;
+    }
+
+    List<OrderItemResponse> itemResponses = new ArrayList<>();
+    if (order.getItems() != null && !order.getItems().isEmpty()) {
+      for (OrderItem item : order.getItems()) {
+        if (item != null) {
+          itemResponses.add(new OrderItemResponse(
+              toTacoResponse(item.getTaco()),
+              item.getQuantity(),
+              item.getUnitPriceAtPurchase(),
+              item.getSubtotal()
+          ));
+        }
+      }
+    }
+
+    List<TacoResponse> tacoResponses = new ArrayList<>();
+    if (order.getTacos() != null) {
+      for (Taco taco : order.getTacos()) {
+        if (taco != null) {
+          tacoResponses.add(toTacoResponse(taco));
+        }
+      }
+    }
+
+    String username = order.getUser() != null ? order.getUser().getUsername() : null;
+
+    return OrderDetailResponse.builder()
+        .id(order.getId())
+        .placedAt(order.getPlacedAt())
+        .deliveryName(order.getDeliveryName())
+        .deliveryStreet(order.getDeliveryStreet())
+        .deliveryCity(order.getDeliveryCity())
+        .deliveryState(order.getDeliveryState())
+        .deliveryZip(order.getDeliveryZip())
+        .username(username)
+        .brand(order.getBrand())
+        .last4(order.getLast4())
+        .items(itemResponses)
+        .tacos(tacoResponses)
+        .subtotal(order.getSubtotal())
+        .discountAmount(order.getDiscountAmount())
+        .total(order.getTotal())
+        .currency(order.getCurrency() != null ? order.getCurrency() : "USD")
+        .couponCode(order.getCouponCode())
+        .status("COMPLETED")
+        .build();
+  }
+
   public Taco toTacoDomain(TacoRequest request) {
     if (request == null) {
       return null;

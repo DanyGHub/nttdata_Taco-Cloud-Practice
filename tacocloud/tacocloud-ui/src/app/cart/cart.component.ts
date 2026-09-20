@@ -24,11 +24,46 @@ export class CartComponent implements OnInit {
     items: [] as any[]
   };
 
+  myOrders: any[] = [];
+  selectedOrderDetail: any = null;
+  orderSuccessMessage: string = '';
+
   constructor(private cart: CartService, private httpClient: HttpClient) {
     this.cart = cart;
   }
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.loadMyOrders();
+  }
+
+  loadMyOrders() {
+    this.httpClient.get('http://localhost:8080/api/users/me/orders?page=0&size=5', { withCredentials: true })
+      .subscribe(
+        (data: any) => {
+          this.myOrders = (data && data.content) ? data.content : (Array.isArray(data) ? data : []);
+        },
+        () => {
+          this.myOrders = [];
+        }
+      );
+  }
+
+  viewOrderDetail(orderId: string) {
+    if (!orderId) return;
+    this.httpClient.get('http://localhost:8080/api/users/me/orders/' + orderId, { withCredentials: true })
+      .subscribe(
+        (data: any) => {
+          this.selectedOrderDetail = data;
+        },
+        () => {
+          this.selectedOrderDetail = null;
+        }
+      );
+  }
+
+  closeOrderDetail() {
+    this.selectedOrderDetail = null;
+  }
 
   get cartItems() {
     return this.cart.getItemsInCart();
@@ -39,6 +74,7 @@ export class CartComponent implements OnInit {
   }
 
   onSubmit() {
+    this.orderSuccessMessage = '';
     this.model.tacos = [];
     this.model.items = [];
     this.cart.getItemsInCart().forEach(cartItem => {
@@ -57,7 +93,17 @@ export class CartComponent implements OnInit {
         this.model, {
             headers: new HttpHeaders().set('Content-type', 'application/json')
                     .set('Accept', 'application/json'),
-        }).subscribe(r => this.cart.emptyCart());
+            withCredentials: true
+        }).subscribe(
+          r => {
+            this.cart.emptyCart();
+            this.orderSuccessMessage = '¡Orden creada exitosamente!';
+            this.loadMyOrders();
+          },
+          err => {
+            alert('Error al procesar la orden.');
+          }
+        );
 
     // TODO: Do something after this...navigate to a thank you page or something
   }

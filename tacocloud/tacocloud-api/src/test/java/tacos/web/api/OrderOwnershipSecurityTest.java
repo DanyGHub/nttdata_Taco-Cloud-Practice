@@ -134,19 +134,17 @@ public class OrderOwnershipSecurityTest {
   }
 
   @Test
-  @DisplayName("TC-11 Ownership: Usuario A listando órdenes sólo obtiene sus propias órdenes")
-  public void userAOnlyGetsOwnOrders() {
-    when(userRepo.findByUsername("userA")).thenReturn(Mono.just(userA));
-    when(orderRepo.findByUserOrderByPlacedAtDesc(eq(userA), any(Pageable.class))).thenReturn(Flux.just(orderOfA));
-
+  @DisplayName("TC-23 Reemplazo allOrders")
+  public void userACannotAccessGlobalAllOrders() {
     Authentication authA = new UsernamePasswordAuthenticationToken("userA", "credentials",
         Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
 
     Flux<OrderResponse> result = controller.allOrders(authA);
 
     StepVerifier.create(result)
-        .assertNext(res -> assertThat(res.getId()).isEqualTo("order-A-1"))
-        .verifyComplete();
+        .expectErrorMatches(throwable -> throwable instanceof ResponseStatusException &&
+            ((ResponseStatusException) throwable).getStatus() == HttpStatus.FORBIDDEN)
+        .verify();
   }
 
   @Test
