@@ -27,6 +27,8 @@ import tacos.web.api.dto.OrderMapper;
 import tacos.web.api.dto.OrderResponse;
 import tacos.web.api.dto.OrderStatusUpdateRequest;
 
+import tacos.messaging.OrderMessagingService;
+
 @Service
 public class OrderWorkflowService {
 
@@ -35,6 +37,8 @@ public class OrderWorkflowService {
   private final OrderRepository orderRepo;
   private final InventoryService inventoryService;
   private final OrderMapper orderMapper;
+  private final OrderMessagingService orderMessages;
+  private final OrderEventMapper orderEventMapper;
 
   private static final Map<OrderStatus, Map<OrderStatus, Set<String>>> TRANSITION_MATRIX = new HashMap<>();
 
@@ -77,10 +81,21 @@ public class OrderWorkflowService {
   public OrderWorkflowService(
       OrderRepository orderRepo,
       InventoryService inventoryService,
-      OrderMapper orderMapper) {
+      OrderMapper orderMapper,
+      @Autowired(required = false) OrderMessagingService orderMessages,
+      @Autowired(required = false) OrderEventMapper orderEventMapper) {
     this.orderRepo = orderRepo;
     this.inventoryService = inventoryService;
     this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
+    this.orderMessages = orderMessages;
+    this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
+  }
+
+  public OrderWorkflowService(
+      OrderRepository orderRepo,
+      InventoryService inventoryService,
+      OrderMapper orderMapper) {
+    this(orderRepo, inventoryService, orderMapper, null, null);
   }
 
   public Mono<ResponseEntity<OrderResponse>> updateOrderStatus(
@@ -154,6 +169,9 @@ public class OrderWorkflowService {
               .map(saved -> {
                 log.info("Order {} transitioned from {} to {} by '{}' ({})",
                     saved.getId(), currentStatus, targetStatus, changedBy, role);
+                if (orderMessages != null && orderEventMapper != null) {
+                  orderMessages.sendOrder(orderEventMapper.toStatusChangedEvent(saved, currentStatus));
+                }
                 return ResponseEntity.ok(orderMapper.toResponse(saved));
               });
         });
@@ -214,6 +232,9 @@ public class OrderWorkflowService {
               .then(orderRepo.save(order))
               .map(saved -> {
                 log.info("Order {} successfully cancelled by '{}' ({})", saved.getId(), changedBy, role);
+                if (orderMessages != null && orderEventMapper != null) {
+                  orderMessages.sendOrder(orderEventMapper.toOrderCancelledEvent(saved, reason));
+                }
                 return ResponseEntity.ok(orderMapper.toResponse(saved));
               });
         });

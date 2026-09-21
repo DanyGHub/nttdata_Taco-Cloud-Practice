@@ -50,6 +50,7 @@ public class OrderApplicationService {
   private final OrderMessagingService orderMessages;
   private final EmailOrderService emailOrderService;
   private final OrderMapper orderMapper;
+  private final OrderEventMapper orderEventMapper;
   private final UserRepository userRepo;
   private final PaymentMethodRepository paymentMethodRepo;
   private final PricingService pricingService;
@@ -68,17 +69,34 @@ public class OrderApplicationService {
       PricingService pricingService,
       InventoryService inventoryService,
       TacoDesignValidator designValidator,
-      IngredientRepository ingredientRepo) {
+      IngredientRepository ingredientRepo,
+      @Autowired(required = false) OrderEventMapper orderEventMapper) {
     this.orderRepo = orderRepo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
     this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
+    this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
     this.userRepo = userRepo;
     this.paymentMethodRepo = paymentMethodRepo;
     this.pricingService = pricingService;
     this.inventoryService = inventoryService;
     this.designValidator = designValidator;
     this.ingredientRepo = ingredientRepo;
+  }
+
+  public OrderApplicationService(
+      OrderRepository orderRepo,
+      OrderMessagingService orderMessages,
+      EmailOrderService emailOrderService,
+      OrderMapper orderMapper,
+      UserRepository userRepo,
+      PaymentMethodRepository paymentMethodRepo,
+      PricingService pricingService,
+      InventoryService inventoryService,
+      TacoDesignValidator designValidator,
+      IngredientRepository ingredientRepo) {
+    this(orderRepo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo,
+        pricingService, inventoryService, designValidator, ingredientRepo, null);
   }
 
   public OrderApplicationService(
@@ -92,7 +110,7 @@ public class OrderApplicationService {
       TacoDesignValidator designValidator,
       IngredientRepository ingredientRepo) {
     this(orderRepo, orderMessages, null, orderMapper, userRepo, paymentMethodRepo,
-        pricingService, inventoryService, designValidator, ingredientRepo);
+        pricingService, inventoryService, designValidator, ingredientRepo, null);
   }
 
   /**
@@ -273,7 +291,7 @@ public class OrderApplicationService {
                         log.info("Reordered successfully: newOrderId={}, oldOrderId={}, total={}",
                             saved.getId(), originalOrderId, saved.getTotal());
                         if (orderMessages != null) {
-                          orderMessages.sendOrder(saved);
+                          orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
                         }
                       })
                       .onErrorResume(error -> {

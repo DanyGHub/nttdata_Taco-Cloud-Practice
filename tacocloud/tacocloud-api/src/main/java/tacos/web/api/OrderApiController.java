@@ -32,6 +32,7 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.order.OrderEventMapper;
 import tacos.web.api.dto.OrderCreateRequest;
 import tacos.web.api.dto.OrderMapper;
 import tacos.web.api.dto.OrderPatchDTO;
@@ -83,6 +84,7 @@ public class OrderApiController {
   private TacoDesignValidator designValidator;
   private OrderApplicationService orderApplicationService;
   private OrderWorkflowService orderWorkflowService;
+  private OrderEventMapper orderEventMapper;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -96,7 +98,8 @@ public class OrderApiController {
                             InventoryService inventoryService,
                             TacoDesignValidator designValidator,
                             @Autowired(required = false) OrderApplicationService orderApplicationService,
-                            @Autowired(required = false) OrderWorkflowService orderWorkflowService) {
+                            @Autowired(required = false) OrderWorkflowService orderWorkflowService,
+                            @Autowired(required = false) OrderEventMapper orderEventMapper) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -111,6 +114,22 @@ public class OrderApiController {
     this.orderWorkflowService = orderWorkflowService != null
         ? orderWorkflowService
         : new OrderWorkflowService(repo, inventoryService, this.orderMapper);
+    this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService,
+                            InventoryService inventoryService,
+                            TacoDesignValidator designValidator,
+                            OrderApplicationService orderApplicationService,
+                            OrderWorkflowService orderWorkflowService) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -375,7 +394,9 @@ public class OrderApiController {
                 .doOnNext(saved -> {
                   log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
                       saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
-                  orderMessages.sendOrder(saved);
+                  if (orderMessages != null) {
+                    orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
+                  }
                 })
                 .onErrorResume(error -> {
                   log.error("Failed to save or publish order {}. Releasing reserved stock.", ordToSave.getId(), error);
@@ -398,7 +419,11 @@ public class OrderApiController {
   public Mono<OrderResponse> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
     return emailOrderService.convertEmailOrderToDomainOrder(emailOrder)
         .flatMap(repo::save)                  // Garantiza consistencia de la base de datos antes de enviar el mensaje
-        .doOnNext(orderMessages::sendOrder)  // Implementar Outbox para TC-29
+        .doOnNext(saved -> {
+          if (orderMessages != null) {
+            orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
+          }
+        })
         .map(orderMapper::toResponse);
   }
 

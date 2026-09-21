@@ -5,28 +5,35 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
-import tacos.Taco;
-import tacos.TacoOrder;
+import tacos.messaging.OrderEvent;
+import tacos.messaging.OrderEventItemPayload;
+import tacos.messaging.OrderEventPayload;
 
 @Component
 @Slf4j
 public class KitchenUI {
 
-  public void displayOrder(TacoOrder order) {
-    if (order == null) {
-      log.info("[KITCHEN UI] No order to display.");
+  public void displayOrder(OrderEvent event) {
+    if (event == null || event.getPayload() == null) {
+      log.info("[KITCHEN UI] No order event to display.");
       return;
     }
-    log.info("==================== [KITCHEN ORDER] ====================");
-    log.info("Customer   : {}", order.getDeliveryName());
-    log.info("Placed At  : {}", order.getPlacedAt());
-    if (order.getTacos() != null) {
-      log.info("Tacos ({}) :", order.getTacos().size());
-      for (Taco taco : order.getTacos()) {
-        log.info("  - Taco: {}", taco != null ? taco.getName() : "Unknown");
+    OrderEventPayload payload = event.getPayload();
+    log.info("==================== [KITCHEN ORDER EVENT] ====================");
+    log.info("Event Type : {}", event.getEventType());
+    log.info("Event ID   : {}", event.getEventId());
+    log.info("Order ID   : {}", payload.getOrderId());
+    log.info("Customer   : {}", payload.getDeliveryName());
+    log.info("Placed At  : {}", payload.getPlacedAt());
+    if (payload.getTacos() != null) {
+      log.info("Tacos ({}) :", payload.getTacos().size());
+      for (OrderEventItemPayload taco : payload.getTacos()) {
+        log.info("  - Taco: {} (Qty: {})",
+            taco != null ? taco.getName() : "Unknown",
+            taco != null ? taco.getQuantity() : 1);
       }
     }
-    log.info("=========================================================");
+    log.info("===============================================================");
   }
 
   public void displayQueue(List<?> queue) {
@@ -42,12 +49,12 @@ public class KitchenUI {
     log.info("=========================================================");
   }
 
-  public void displayClaim(TacoOrder order, String stationId, String cookId) {
+  public void displayClaim(OrderEvent event, String stationId, String cookId) {
     log.info("==================== [ORDER CLAIMED] ====================");
     log.info("Station ID : {}", stationId);
     log.info("Cook ID    : {}", cookId);
-    if (order != null) {
-      log.info("Order ID   : {}", order.getDeliveryName() != null ? order.getDeliveryName() : "N/A");
+    if (event != null && event.getPayload() != null) {
+      log.info("Order ID   : {}", event.getPayload().getOrderId());
     }
     log.info("Status     : ACCEPTED -> Ready for prep");
     log.info("=========================================================");

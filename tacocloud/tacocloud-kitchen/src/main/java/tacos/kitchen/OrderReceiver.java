@@ -1,9 +1,9 @@
 package tacos.kitchen;
 
-import tacos.TacoOrder;
+import tacos.messaging.OrderEvent;
 
 public interface OrderReceiver {
 
-  TacoOrder receiveOrder();
+  OrderEvent receiveOrder();
 
 }

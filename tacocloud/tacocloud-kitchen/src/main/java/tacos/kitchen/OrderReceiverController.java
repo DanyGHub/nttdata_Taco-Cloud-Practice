@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import lombok.RequiredArgsConstructor;
-import tacos.TacoOrder;
+import tacos.messaging.OrderEvent;
 
 @Profile({"jms-template", "rabbitmq-template"})
 @Controller
@@ -16,16 +16,15 @@ import tacos.TacoOrder;
 public class OrderReceiverController {
 
   private final OrderReceiver orderReceiver;
-  
+
   @GetMapping("/receive")
   public String receiveOrder(Model model) {
-    TacoOrder order = orderReceiver.receiveOrder();
-    if (order != null) {
-      model.addAttribute("order", order);
+    OrderEvent event = orderReceiver.receiveOrder();
+    if (event != null && event.getPayload() != null) {
+      model.addAttribute("order", event.getPayload());
       return "receiveOrder";
     }
     return "noOrder";
   }
-  
-  
+
 }

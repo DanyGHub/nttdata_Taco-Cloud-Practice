@@ -24,6 +24,7 @@ import tacos.Taco;
 import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.OrderRepository;
+import tacos.messaging.OrderEvent;
 import tacos.messaging.OrderMessagingService;
 import tacos.web.api.dto.IngredientMapper;
 import tacos.web.api.dto.IngredientRequest;
@@ -261,7 +262,7 @@ public class OrderDtoAndSerializationTest {
         .jsonPath("$.authorities").doesNotExist();
 
     verify(repo, times(1)).save(any(TacoOrder.class));
-    verify(messagingService, times(1)).sendOrder(any(TacoOrder.class));
+    verify(messagingService, times(1)).sendOrder(any(OrderEvent.class));
   }
 
   @Test

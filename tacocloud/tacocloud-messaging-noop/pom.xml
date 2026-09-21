@@ -26,8 +26,16 @@
 		<!-- TacoCloud dependencies -->
 		<dependency>
 			<groupId>sia</groupId>
-			<artifactId>tacocloud-domain-mongodb</artifactId>
+			<artifactId>tacocloud-messaging-contract</artifactId>
 			<version>${tacocloud.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-context</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
 		</dependency>
 
 		<!-- Lombok -->

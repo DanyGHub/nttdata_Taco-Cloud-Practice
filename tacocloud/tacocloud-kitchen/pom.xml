@@ -23,6 +23,13 @@
 	</properties>
 
 	<dependencies>
+		<!-- TacoCloud Messaging Contract -->
+		<dependency>
+			<groupId>sia</groupId>
+			<artifactId>tacocloud-messaging-contract</artifactId>
+			<version>${tacocloud.version}</version>
+		</dependency>
+
 		<!-- Necessary Boot starters -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

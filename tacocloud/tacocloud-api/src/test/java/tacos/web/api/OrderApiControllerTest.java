@@ -24,6 +24,7 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.OrderRepository;
+import tacos.messaging.OrderEvent;
 import tacos.messaging.OrderMessagingService;
 import tacos.web.api.EmailOrder;
 
@@ -86,7 +87,7 @@ public class OrderApiControllerTest {
         .jsonPath("$.deliveryName").isEqualTo("Craig Walls");
 
     verify(repo, times(1)).save(convertedOrder);
-    verify(messagingService, times(1)).sendOrder(savedOrder);
+    verify(messagingService, times(1)).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -174,7 +175,7 @@ public class OrderApiControllerTest {
         .expectStatus().isCreated();
 
     assertThat(subscriptionCount.get()).isEqualTo(1);
-    verify(messagingService, times(1)).sendOrder(savedOrder);
+    verify(messagingService, times(1)).sendOrder(any(OrderEvent.class));
   }
 
   // TC-04: PATCH de órdenes con lista blanca y sin ZIP mutante
