@@ -31,6 +31,11 @@ public class TacoOrder implements Serializable {
   private OrderStatus status = OrderStatus.CREATED;
   private List<OrderStatusHistory> statusHistory = new ArrayList<>();
 
+  private String stationId;
+  private String cookId;
+  private Integer estimatedPrepMinutes;
+  private Date acceptedAt;
+
   @Indexed(sparse = true)
   private String idempotencyKey;
 
