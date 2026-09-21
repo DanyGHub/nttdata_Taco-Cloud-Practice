@@ -54,6 +54,8 @@ public class OrderMapper {
       order.setLast4(request.getCcNumber().substring(request.getCcNumber().length() - 4));
     }
     order.setCouponCode(request.getCouponCode());
+    order.setStatus(tacos.order.OrderStatus.CREATED);
+    order.recordStatusChange(tacos.order.OrderStatus.CREATED, "system", "SYSTEM", "API_CREATE", "Order created");
 
     if (request.getItems() != null && !request.getItems().isEmpty()) {
       for (OrderItemRequest itemReq : request.getItems()) {
@@ -98,6 +100,11 @@ public class OrderMapper {
     response.setTotal(order.getTotal());
     response.setCurrency(order.getCurrency() != null ? order.getCurrency() : "USD");
     response.setCouponCode(order.getCouponCode());
+    response.setStatus(order.getStatus() != null ? order.getStatus() : tacos.order.OrderStatus.CREATED);
+    response.setVersion(order.getVersion());
+    if (order.getStatusHistory() != null) {
+      response.setStatusHistory(new ArrayList<>(order.getStatusHistory()));
+    }
 
     if (order.getItems() != null && !order.getItems().isEmpty()) {
       List<OrderItemResponse> itemResponses = new ArrayList<>();
@@ -154,7 +161,8 @@ public class OrderMapper {
         .currency(order.getCurrency() != null ? order.getCurrency() : "USD")
         .brand(order.getBrand())
         .last4(order.getLast4())
-        .status("COMPLETED")
+        .status(order.getStatus() != null ? order.getStatus() : tacos.order.OrderStatus.CREATED)
+        .version(order.getVersion())
         .build();
   }
 
@@ -206,7 +214,9 @@ public class OrderMapper {
         .total(order.getTotal())
         .currency(order.getCurrency() != null ? order.getCurrency() : "USD")
         .couponCode(order.getCouponCode())
-        .status("COMPLETED")
+        .status(order.getStatus() != null ? order.getStatus() : tacos.order.OrderStatus.CREATED)
+        .version(order.getVersion())
+        .statusHistory(order.getStatusHistory() != null ? new ArrayList<>(order.getStatusHistory()) : new ArrayList<>())
         .build();
   }
 

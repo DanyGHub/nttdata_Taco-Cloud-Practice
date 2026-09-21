@@ -83,7 +83,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .antMatchers("/orders/receive/**", "/kitchen/**", "/api/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
 
         // 10. Pedidos / Órdenes (API y Vistas Web), Métodos de Pago y Cupones
-        .antMatchers("/api/coupons/**", "/api/payment-methods/**", "/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN")
+        .antMatchers("/api/coupons/**", "/api/payment-methods/**", "/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN", "KITCHEN", "DELIVERY")
 
         // 11. TC-21 Favoritos por usuario autenticado
         .antMatchers("/api/users/me/**").hasAnyRole("USER", "ADMIN")

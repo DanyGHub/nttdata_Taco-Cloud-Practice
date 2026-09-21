@@ -39,6 +39,10 @@ public class OrderDetailResponse {
   @Builder.Default
   private String currency = "USD";
   private String couponCode;
-  private String status;
+  private tacos.order.OrderStatus status;
+  private Long version;
+
+  @Builder.Default
+  private List<tacos.order.OrderStatusHistory> statusHistory = new ArrayList<>();
 
 }

@@ -31,5 +31,8 @@ public class OrderResponse {
   private java.math.BigDecimal total;
   private String currency = "USD";
   private String couponCode;
+  private tacos.order.OrderStatus status;
+  private Long version;
+  private List<tacos.order.OrderStatusHistory> statusHistory = new ArrayList<>();
 
 }

@@ -24,6 +24,7 @@ public class OrderSummaryResponse {
   private String currency;
   private String brand;
   private String last4;
-  private String status;
+  private tacos.order.OrderStatus status;
+  private Long version;
 
 }

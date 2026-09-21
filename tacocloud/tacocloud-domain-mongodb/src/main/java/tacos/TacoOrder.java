@@ -7,10 +7,13 @@ import java.util.Date;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.Data;
+import tacos.order.OrderStatus;
+import tacos.order.OrderStatusHistory;
 
 @Data
 @Document
@@ -19,7 +22,14 @@ public class TacoOrder implements Serializable {
 
   @Id
   private String id;
+
+  @Version
+  private Long version;
+
   private Date placedAt = new Date();
+
+  private OrderStatus status = OrderStatus.CREATED;
+  private List<OrderStatusHistory> statusHistory = new ArrayList<>();
 
   @Indexed(sparse = true)
   private String idempotencyKey;
@@ -62,6 +72,14 @@ public class TacoOrder implements Serializable {
         this.tacos.add(item.getTaco());
       }
     }
+  }
+
+  public void recordStatusChange(OrderStatus newStatus, String changedBy, String role, String origin, String reason) {
+    this.status = newStatus;
+    if (this.statusHistory == null) {
+      this.statusHistory = new ArrayList<>();
+    }
+    this.statusHistory.add(new OrderStatusHistory(newStatus, new Date(), changedBy, role, origin, reason));
   }
 
 }

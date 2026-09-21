@@ -21,6 +21,9 @@ import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import javax.validation.Valid;
 
 import tacos.order.OrderApplicationService;
+import tacos.order.OrderWorkflowService;
+import tacos.web.api.dto.OrderCancelRequest;
+import tacos.web.api.dto.OrderStatusUpdateRequest;
 import tacos.web.api.dto.ReorderRequest;
 import tacos.web.api.dto.ReorderResponse;
 
@@ -79,6 +82,7 @@ public class OrderApiController {
   private InventoryService inventoryService;
   private TacoDesignValidator designValidator;
   private OrderApplicationService orderApplicationService;
+  private OrderWorkflowService orderWorkflowService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -91,7 +95,8 @@ public class OrderApiController {
                             PricingService pricingService,
                             InventoryService inventoryService,
                             TacoDesignValidator designValidator,
-                            @Autowired(required = false) OrderApplicationService orderApplicationService) {
+                            @Autowired(required = false) OrderApplicationService orderApplicationService,
+                            @Autowired(required = false) OrderWorkflowService orderWorkflowService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -103,6 +108,23 @@ public class OrderApiController {
     this.inventoryService = inventoryService;
     this.designValidator = designValidator;
     this.orderApplicationService = orderApplicationService;
+    this.orderWorkflowService = orderWorkflowService != null
+        ? orderWorkflowService
+        : new OrderWorkflowService(repo, inventoryService, this.orderMapper);
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService,
+                            InventoryService inventoryService,
+                            TacoDesignValidator designValidator,
+                            OrderApplicationService orderApplicationService) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -115,7 +137,7 @@ public class OrderApiController {
                             PricingService pricingService,
                             InventoryService inventoryService,
                             TacoDesignValidator designValidator) {
-    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -554,6 +576,28 @@ public class OrderApiController {
       svc = new OrderApplicationService(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, pricingService, inventoryService, designValidator, null);
     }
     return svc.reorder(orderId, request, authentication, idempotencyKeyHeader);
+  }
+
+  @PatchMapping(path="/{id}/status", consumes="application/json")
+  public Mono<ResponseEntity<OrderResponse>> updateStatus(
+      @PathVariable("id") String orderId,
+      @Valid @RequestBody OrderStatusUpdateRequest request,
+      Authentication authentication) {
+    OrderWorkflowService svc = this.orderWorkflowService != null
+        ? this.orderWorkflowService
+        : new OrderWorkflowService(repo, inventoryService, orderMapper);
+    return svc.updateOrderStatus(orderId, request, authentication);
+  }
+
+  @PostMapping(path="/{id}/cancel")
+  public Mono<ResponseEntity<OrderResponse>> cancelOrder(
+      @PathVariable("id") String orderId,
+      @RequestBody(required = false) OrderCancelRequest request,
+      Authentication authentication) {
+    OrderWorkflowService svc = this.orderWorkflowService != null
+        ? this.orderWorkflowService
+        : new OrderWorkflowService(repo, inventoryService, orderMapper);
+    return svc.cancelOrder(orderId, request, authentication);
   }
 
 }
