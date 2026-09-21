@@ -57,6 +57,7 @@ public class OrderApplicationService {
   private final InventoryService inventoryService;
   private final TacoDesignValidator designValidator;
   private final IngredientRepository ingredientRepo;
+  private final OrderPlacementService orderPlacementService;
 
   @Autowired
   public OrderApplicationService(
@@ -70,7 +71,8 @@ public class OrderApplicationService {
       InventoryService inventoryService,
       TacoDesignValidator designValidator,
       IngredientRepository ingredientRepo,
-      @Autowired(required = false) OrderEventMapper orderEventMapper) {
+      @Autowired(required = false) OrderEventMapper orderEventMapper,
+      @Autowired(required = false) OrderPlacementService orderPlacementService) {
     this.orderRepo = orderRepo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -82,6 +84,7 @@ public class OrderApplicationService {
     this.inventoryService = inventoryService;
     this.designValidator = designValidator;
     this.ingredientRepo = ingredientRepo;
+    this.orderPlacementService = orderPlacementService;
   }
 
   public OrderApplicationService(
@@ -96,7 +99,7 @@ public class OrderApplicationService {
       TacoDesignValidator designValidator,
       IngredientRepository ingredientRepo) {
     this(orderRepo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo,
-        pricingService, inventoryService, designValidator, ingredientRepo, null);
+        pricingService, inventoryService, designValidator, ingredientRepo, null, null);
   }
 
   public OrderApplicationService(
@@ -110,7 +113,7 @@ public class OrderApplicationService {
       TacoDesignValidator designValidator,
       IngredientRepository ingredientRepo) {
     this(orderRepo, orderMessages, null, orderMapper, userRepo, paymentMethodRepo,
-        pricingService, inventoryService, designValidator, ingredientRepo, null);
+        pricingService, inventoryService, designValidator, ingredientRepo, null, null);
   }
 
   /**
@@ -286,21 +289,28 @@ public class OrderApplicationService {
                       ? inventoryService.reserve(pricedOrder).thenReturn(pricedOrder)
                       : Mono.just(pricedOrder);
 
-                  return reservedMono.flatMap(ordToSave -> orderRepo.save(ordToSave)
-                      .doOnNext(saved -> {
-                        log.info("Reordered successfully: newOrderId={}, oldOrderId={}, total={}",
-                            saved.getId(), originalOrderId, saved.getTotal());
-                        if (orderMessages != null) {
-                          orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
-                        }
-                      })
-                      .onErrorResume(error -> {
-                        log.error("Failed to save reorder. Releasing reserved stock for order {}", ordToSave.getId(), error);
-                        if (inventoryService != null) {
-                          return inventoryService.releaseForOrder(ordToSave.getId()).then(Mono.error(error));
-                        }
-                        return Mono.error(error);
-                      })
+                  return reservedMono.flatMap(ordToSave -> {
+                    Mono<TacoOrder> savePipeline = (orderPlacementService != null)
+                        ? orderPlacementService.placeOrder(ordToSave)
+                        : orderRepo.save(ordToSave).doOnNext(saved -> {
+                            if (orderMessages != null) {
+                              orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
+                            }
+                          });
+
+                    return savePipeline
+                        .doOnNext(saved -> {
+                          log.info("Reordered successfully: newOrderId={}, oldOrderId={}, total={}",
+                              saved.getId(), originalOrderId, saved.getTotal());
+                        })
+                        .onErrorResume(error -> {
+                          log.error("Failed to save reorder. Releasing reserved stock for order {}", ordToSave.getId(), error);
+                          if (inventoryService != null) {
+                            return inventoryService.releaseForOrder(ordToSave.getId()).then(Mono.error(error));
+                          }
+                          return Mono.error(error);
+                        });
+                  })
                       .map(saved -> {
                         ReorderResponse successResp = ReorderResponse.builder()
                             .status("CREATED")
@@ -313,7 +323,7 @@ public class OrderApplicationService {
                             .order(orderMapper.toResponse(saved))
                             .build();
                         return ResponseEntity.status(HttpStatus.CREATED).body(successResp);
-                      }));
+                      });
                 });
               });
             }));

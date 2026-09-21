@@ -10,6 +10,17 @@ taco:
 tacocloud:
   messaging:
     transport: noop
+  outbox:
+    enabled: true
+    batch-size: 10
+    lock-duration-ms: 30000
+    max-retries: 5
+    backoff-multiplier-ms: 2000
+    scheduler:
+      fixed-delay-ms: 2000
+  mongo:
+    transactions:
+      enabled: false
 
 
   discount:
@@ -148,6 +159,9 @@ tacocloud:
   messaging:
     # Must be explicitly configured in production via -Dtacocloud.messaging.transport=...
     transport: ""
+  mongo:
+    transactions:
+      enabled: true
 
 logging:
   level:

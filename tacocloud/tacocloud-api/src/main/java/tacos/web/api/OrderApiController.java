@@ -21,6 +21,7 @@ import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import javax.validation.Valid;
 
 import tacos.order.OrderApplicationService;
+import tacos.order.OrderPlacementService;
 import tacos.order.OrderWorkflowService;
 import tacos.web.api.dto.OrderCancelRequest;
 import tacos.web.api.dto.OrderStatusUpdateRequest;
@@ -85,6 +86,7 @@ public class OrderApiController {
   private OrderApplicationService orderApplicationService;
   private OrderWorkflowService orderWorkflowService;
   private OrderEventMapper orderEventMapper;
+  private OrderPlacementService orderPlacementService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -99,7 +101,8 @@ public class OrderApiController {
                             TacoDesignValidator designValidator,
                             @Autowired(required = false) OrderApplicationService orderApplicationService,
                             @Autowired(required = false) OrderWorkflowService orderWorkflowService,
-                            @Autowired(required = false) OrderEventMapper orderEventMapper) {
+                            @Autowired(required = false) OrderEventMapper orderEventMapper,
+                            @Autowired(required = false) OrderPlacementService orderPlacementService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -115,6 +118,7 @@ public class OrderApiController {
         ? orderWorkflowService
         : new OrderWorkflowService(repo, inventoryService, this.orderMapper);
     this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
+    this.orderPlacementService = orderPlacementService;
   }
 
   public OrderApiController(OrderRepository repo,
@@ -129,7 +133,7 @@ public class OrderApiController {
                             TacoDesignValidator designValidator,
                             OrderApplicationService orderApplicationService,
                             OrderWorkflowService orderWorkflowService) {
-    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -389,14 +393,18 @@ public class OrderApiController {
               orderWithUser = Mono.just(ordToSave);
             }
 
-            return orderWithUser
-                .flatMap(repo::save)
+            Mono<TacoOrder> savePipeline = (orderPlacementService != null)
+                ? orderWithUser.flatMap(orderPlacementService::placeOrder)
+                : orderWithUser.flatMap(repo::save).doOnNext(saved -> {
+                    if (orderMessages != null) {
+                      orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
+                    }
+                  });
+
+            return savePipeline
                 .doOnNext(saved -> {
                   log.info("Order saved: id={}, brand={}, last4={}, subtotal={}, total={}",
                       saved.getId(), saved.getBrand(), saved.getLast4(), saved.getSubtotal(), saved.getTotal());
-                  if (orderMessages != null) {
-                    orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
-                  }
                 })
                 .onErrorResume(error -> {
                   log.error("Failed to save or publish order {}. Releasing reserved stock.", ordToSave.getId(), error);
@@ -413,17 +421,18 @@ public class OrderApiController {
     }));
   }
 
-  // TC-07: Una sola suscripción para guardar y publicar (save-then-send)
+  // TC-29: Outbox transaccional para ordenes desde email
   @PostMapping(path="fromEmail", consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<OrderResponse> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
     return emailOrderService.convertEmailOrderToDomainOrder(emailOrder)
-        .flatMap(repo::save)                  // Garantiza consistencia de la base de datos antes de enviar el mensaje
-        .doOnNext(saved -> {
-          if (orderMessages != null) {
-            orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
-          }
-        })
+        .flatMap(ord -> (orderPlacementService != null)
+            ? orderPlacementService.placeOrder(ord)
+            : repo.save(ord).doOnNext(saved -> {
+                if (orderMessages != null) {
+                  orderMessages.sendOrder(orderEventMapper.toOrderCreatedEvent(saved));
+                }
+              }))
         .map(orderMapper::toResponse);
   }
 
