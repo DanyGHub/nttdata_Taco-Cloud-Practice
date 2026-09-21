@@ -1,0 +1,24 @@
+# Taco Cloud - Profile: rabbit
+tacocloud:
+  messaging:
+    transport: rabbit
+    rabbit:
+      queue: ${TACOCLOUD_RABBIT_QUEUE:tacocloud.order.queue}
+      exchange: ${TACOCLOUD_RABBIT_EXCHANGE:}
+      routing-key: ${TACOCLOUD_RABBIT_ROUTING_KEY:tacocloud.order.queue}
+
+spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+management:
+  health:
+    rabbit:
+      enabled: true
+    jms:
+      enabled: false
+    kafka:
+      enabled: false

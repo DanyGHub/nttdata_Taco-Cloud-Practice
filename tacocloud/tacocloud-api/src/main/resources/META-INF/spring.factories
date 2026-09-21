@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  tacos.messaging.config.MessagingTransportEnvironmentPostProcessor

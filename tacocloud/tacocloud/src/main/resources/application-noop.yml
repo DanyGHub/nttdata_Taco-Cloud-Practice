@@ -1,0 +1,13 @@
+# Taco Cloud - Profile: noop
+tacocloud:
+  messaging:
+    transport: noop
+
+management:
+  health:
+    rabbit:
+      enabled: false
+    jms:
+      enabled: false
+    kafka:
+      enabled: false

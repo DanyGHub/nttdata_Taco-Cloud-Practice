@@ -1,0 +1,25 @@
+# Taco Cloud - Profile: kafka
+tacocloud:
+  messaging:
+    transport: kafka
+    kafka:
+      topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
+
+spring:
+  kafka:
+    bootstrap-servers:
+    - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    template:
+      default-topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
+    producer:
+      keySerializer: org.springframework.kafka.support.serializer.JsonSerializer
+      valueSerializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+management:
+  health:
+    kafka:
+      enabled: true
+    rabbit:
+      enabled: false
+    jms:
+      enabled: false

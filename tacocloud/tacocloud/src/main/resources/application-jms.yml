@@ -1,3 +1,10 @@
+# Taco Cloud - Profile: jms
+tacocloud:
+  messaging:
+    transport: jms
+    jms:
+      destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
+
 spring:
   jms:
     template:
@@ -9,15 +16,12 @@ spring:
     password: ${ARTEMIS_PASSWORD:}
     embedded:
       enabled: false
-    
----
-spring:
-  config:
-    activate:
-      on-profile: production, prod
-    
-  artemis:
-    host: ${ARTEMIS_HOST:artemis.tacocloud.com}
-    port: ${ARTEMIS_PORT:61617}
-    user: ${ARTEMIS_USER:tacoweb}
-    password: ${ARTEMIS_PASSWORD:}
+
+management:
+  health:
+    jms:
+      enabled: true
+    rabbit:
+      enabled: false
+    kafka:
+      enabled: false

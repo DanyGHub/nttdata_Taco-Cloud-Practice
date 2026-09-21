@@ -34,38 +34,65 @@ taco:
         valid-from: "2030-01-01T00:00:00Z"
         valid-to: "2030-12-31T23:59:59Z"
 
+tacocloud:
+  messaging:
+    transport: noop
+    jms:
+      destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
+    rabbit:
+      queue: ${TACOCLOUD_RABBIT_QUEUE:tacocloud.order.queue}
+      exchange: ${TACOCLOUD_RABBIT_EXCHANGE:}
+      routing-key: ${TACOCLOUD_RABBIT_ROUTING_KEY:tacocloud.order.queue}
+    kafka:
+      topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
+
 spring:
   jms:
     template:
-      default-destination: tacocloud.order.queue
+      default-destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
   artemis:
-    host: localhost
-    port: 61616
-    user: tacoweb
-    password: letm31n
+    host: ${ARTEMIS_HOST:localhost}
+    port: ${ARTEMIS_PORT:61616}
+    user: ${ARTEMIS_USER:tacoweb}
+    password: ${ARTEMIS_PASSWORD:}
     embedded:
       enabled: false
       
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
   kafka:
     bootstrap-servers:
-    - localhost:9092
+    - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     template:
-      default-topic: tacocloud.orders.topic
+      default-topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
     consumer:
       key-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
     producer:
       key-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer    
+
+management:
+  health:
+    rabbit:
+      enabled: false
+    jms:
+      enabled: false
+    kafka:
+      enabled: false
+
 ---
-# None of these properties will actually work as configured for this profile.
-# But it is left here as an example of configuring for a production profile
-# that will override the local configuration in the default profile.
 spring:
-  profiles: production
+  config:
+    activate:
+      on-profile: production, prod
     
   artemis:
-    host: artemis.tacocloud.com
-    port: 61617
-    user: tacoweb
-    password: l3tm31n
+    host: ${ARTEMIS_HOST:artemis.tacocloud.com}
+    port: ${ARTEMIS_PORT:61617}
+    user: ${ARTEMIS_USER:tacoweb}
+    password: ${ARTEMIS_PASSWORD:}

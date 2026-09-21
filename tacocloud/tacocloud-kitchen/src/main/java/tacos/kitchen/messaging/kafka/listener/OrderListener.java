@@ -22,7 +22,7 @@ public class OrderListener {
     this.ui = ui;
   }
 
-  @KafkaListener(topics = "tacocloud.orders.topic")
+  @KafkaListener(topics = "${tacocloud.messaging.kafka.topic:tacocloud.orders.topic}")
   public void handle(OrderEvent event, ConsumerRecord<String, OrderEvent> record) {
     log.info("Received OrderEvent from partition {} with timestamp {}",
         record.partition(), record.timestamp());

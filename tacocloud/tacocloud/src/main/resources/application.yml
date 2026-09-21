@@ -7,6 +7,10 @@ taco:
   orders:
     pageSize: 10
 
+tacocloud:
+  messaging:
+    transport: noop
+
 
   discount:
     codes:
@@ -109,6 +113,13 @@ management:
     health:
       show-details: when-authorized
 #end::healthShowDetails[]
+  health:
+    rabbit:
+      enabled: false
+    jms:
+      enabled: false
+    kafka:
+      enabled: false
 #tag::infoGitModeFull[]
   info:
     git:
@@ -124,12 +135,19 @@ info:
 
 ---
 spring:
-  profiles: prod
+  config:
+    activate:
+      on-profile: prod
 
   datasource:
     url: jdbc:mysql://localhost/tacocloud
     username: tacouser
     password: tacopassword
+
+tacocloud:
+  messaging:
+    # Must be explicitly configured in production via -Dtacocloud.messaging.transport=...
+    transport: ""
 
 logging:
   level:

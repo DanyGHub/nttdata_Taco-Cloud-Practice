@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Profile;
 
 @Profile({"rabbitmq-template", "rabbitmq-listener"})
 @Configuration
-public class MessagingConfig {
+public class KitchenRabbitMessagingConfig {
 
   @Bean
   public Jackson2JsonMessageConverter messageConverter() {
