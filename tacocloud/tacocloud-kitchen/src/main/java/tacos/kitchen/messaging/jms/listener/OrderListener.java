@@ -5,23 +5,23 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 
-import tacos.kitchen.KitchenUI;
+import tacos.kitchen.workflow.OrderProcessingWorkflow;
 import tacos.messaging.OrderEvent;
 
 @Profile("jms-listener")
 @Component
 public class OrderListener {
 
-  private final KitchenUI ui;
+  private final OrderProcessingWorkflow workflow;
 
   @Autowired
-  public OrderListener(KitchenUI ui) {
-    this.ui = ui;
+  public OrderListener(OrderProcessingWorkflow workflow) {
+    this.workflow = workflow;
   }
 
   @JmsListener(destination = "${tacocloud.messaging.jms.destination:tacocloud.order.queue}")
   public void receiveOrder(OrderEvent event) {
-    ui.displayOrder(event);
+    workflow.processOrderEvent(event);
   }
 
 }

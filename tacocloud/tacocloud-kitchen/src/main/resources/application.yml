@@ -1,6 +1,43 @@
 server:
   port: 8081
 
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/tacocloud_kitchen}
+      auto-index-creation: true
+
+tacocloud:
+  messaging:
+    consumer:
+      retry:
+        max-attempts: ${TACOCLOUD_CONSUMER_RETRY_MAX_ATTEMPTS:3}
+        initial-interval: ${TACOCLOUD_CONSUMER_RETRY_INITIAL_INTERVAL:1000}
+        multiplier: ${TACOCLOUD_CONSUMER_RETRY_MULTIPLIER:2.0}
+        max-interval: ${TACOCLOUD_CONSUMER_RETRY_MAX_INTERVAL:10000}
+    rabbit:
+      queue: ${TACOCLOUD_RABBIT_QUEUE:tacocloud.order.queue}
+      exchange: ${TACOCLOUD_RABBIT_EXCHANGE:tacocloud.order.exchange}
+      dlq: ${TACOCLOUD_RABBIT_DLQ:tacocloud.order.queue.dlq}
+      dlx: ${TACOCLOUD_RABBIT_DLX:tacocloud.order.dlx}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+---
+spring:
+  config:
+    activate:
+      on-profile: rabbitmq-template, rabbitmq-listener
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASSWORD:guest}
+
 ---
 spring:
   config:
@@ -16,7 +53,7 @@ spring:
     password: ${ARTEMIS_PASSWORD:}
     embedded:
       enabled: false
-    
+
 ---
 spring:
   config:
