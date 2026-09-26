@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
+import tacos.correlation.CorrelationContext;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import reactor.core.publisher.Mono;
@@ -40,76 +41,90 @@ public class OrderEventMapperTest {
 
   @BeforeEach
   public void setUp() {
+    CorrelationContext.clear();
     mapper = new OrderEventMapper();
   }
 
   @Test
-  @DisplayName("toOrderCreatedEvent debe mapear correctamente los datos seguros de TacoOrder a OrderEvent")
+  @DisplayName("toOrderCreatedEvent debe mapear correctamente los datos seguros de TacoOrder a OrderEvent usando CorrelationContext")
   public void testToOrderCreatedEvent() {
-    TacoOrder order = new TacoOrder();
-    order.setId("ORDER_999");
-    order.setStatus(OrderStatus.CREATED);
-    order.setDeliveryName("Alice Wonderland");
-    order.setDeliveryStreet("789 Rabbit Hole");
-    order.setDeliveryCity("Wonderland");
-    order.setDeliveryState("WL");
-    order.setDeliveryZip("12345");
-    order.setPlacedAt(new Date());
+    CorrelationContext.set("CORR_TEST_999");
+    try {
+      TacoOrder order = new TacoOrder();
+      order.setId("ORDER_999");
+      order.setStatus(OrderStatus.CREATED);
+      order.setDeliveryName("Alice Wonderland");
+      order.setDeliveryStreet("789 Rabbit Hole");
+      order.setDeliveryCity("Wonderland");
+      order.setDeliveryState("WL");
+      order.setDeliveryZip("12345");
+      order.setPlacedAt(new Date());
 
-    Taco taco = new Taco();
-    taco.setName("Cheesy Taco");
-    Ingredient ing1 = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
-    Ingredient ing2 = new Ingredient("CHED", "Cheddar Cheese", Type.CHEESE);
-    taco.setIngredients(Arrays.asList(ing1, ing2));
-    order.setTacos(Arrays.asList(taco));
+      Taco taco = new Taco();
+      taco.setName("Cheesy Taco");
+      Ingredient ing1 = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
+      Ingredient ing2 = new Ingredient("CHED", "Cheddar Cheese", Type.CHEESE);
+      taco.setIngredients(Arrays.asList(ing1, ing2));
+      order.setTacos(Arrays.asList(taco));
 
-    OrderEvent event = mapper.toOrderCreatedEvent(order);
+      OrderEvent event = mapper.toOrderCreatedEvent(order);
 
-    assertThat(event).isNotNull();
-    assertThat(event.getEventId()).isNotNull();
-    assertThat(UUID.fromString(event.getEventId())).isNotNull();
-    assertThat(event.getEventType()).isEqualTo(OrderEventType.ORDER_CREATED);
-    assertThat(event.getVersion()).isEqualTo(1);
-    assertThat(event.getCorrelationId()).isEqualTo("ORDER_999");
-    assertThat(event.getPayload()).isNotNull();
-    assertThat(event.getPayload().getOrderId()).isEqualTo("ORDER_999");
-    assertThat(event.getPayload().getStatus()).isEqualTo("CREATED");
-    assertThat(event.getPayload().getCustomerName()).isEqualTo("Alice Wonderland");
-    assertThat(event.getPayload().getItems()).hasSize(1);
-    assertThat(event.getPayload().getItems().get(0).getTacoName()).isEqualTo("Cheesy Taco");
-    assertThat(event.getPayload().getItems().get(0).getIngredients()).hasSize(2);
+      assertThat(event).isNotNull();
+      assertThat(event.getEventId()).isNotNull();
+      assertThat(UUID.fromString(event.getEventId())).isNotNull();
+      assertThat(event.getEventType()).isEqualTo(OrderEventType.ORDER_CREATED);
+      assertThat(event.getVersion()).isEqualTo(1);
+      assertThat(event.getCorrelationId()).isEqualTo("CORR_TEST_999");
+      assertThat(event.getCorrelationId()).isNotEqualTo(order.getId());
+      assertThat(event.getPayload()).isNotNull();
+      assertThat(event.getPayload().getOrderId()).isEqualTo("ORDER_999");
+      assertThat(event.getPayload().getStatus()).isEqualTo("CREATED");
+      assertThat(event.getPayload().getCustomerName()).isEqualTo("Alice Wonderland");
+      assertThat(event.getPayload().getItems()).hasSize(1);
+      assertThat(event.getPayload().getItems().get(0).getTacoName()).isEqualTo("Cheesy Taco");
+      assertThat(event.getPayload().getItems().get(0).getIngredients()).hasSize(2);
+    } finally {
+      CorrelationContext.clear();
+    }
   }
 
   @Test
-  @DisplayName("toStatusChangedEvent debe mapear el estado anterior y el nuevo estado")
+  @DisplayName("toStatusChangedEvent debe mapear el estado anterior y el nuevo estado con CorrelationContext")
   public void testToStatusChangedEvent() {
-    TacoOrder order = new TacoOrder();
-    order.setId("ORDER_888");
-    order.setStatus(OrderStatus.PREPARING);
-    order.setDeliveryName("Bob Builder");
+    CorrelationContext.set("CORR_TEST_888");
+    try {
+      TacoOrder order = new TacoOrder();
+      order.setId("ORDER_888");
+      order.setStatus(OrderStatus.PREPARING);
+      order.setDeliveryName("Bob Builder");
 
-    OrderEvent event = mapper.toStatusChangedEvent(order, OrderStatus.ACCEPTED);
+      OrderEvent event = mapper.toStatusChangedEvent(order, OrderStatus.ACCEPTED);
 
-    assertThat(event).isNotNull();
-    assertThat(event.getEventType()).isEqualTo(OrderEventType.ORDER_STATUS_CHANGED);
-    assertThat(event.getCorrelationId()).isEqualTo("ORDER_888");
-    assertThat(event.getPayload().getStatus()).isEqualTo("PREPARING");
-    assertThat(event.getPayload().getPreviousStatus()).isEqualTo("ACCEPTED");
+      assertThat(event).isNotNull();
+      assertThat(event.getEventType()).isEqualTo(OrderEventType.ORDER_STATUS_CHANGED);
+      assertThat(event.getCorrelationId()).isEqualTo("CORR_TEST_888");
+      assertThat(event.getCorrelationId()).isNotEqualTo(order.getId());
+      assertThat(event.getPayload().getStatus()).isEqualTo("PREPARING");
+      assertThat(event.getPayload().getPreviousStatus()).isEqualTo("ACCEPTED");
+    } finally {
+      CorrelationContext.clear();
+    }
   }
 
   @Test
-  @DisplayName("toOrderCancelledEvent debe mapear la razón de cancelación")
+  @DisplayName("toOrderCancelledEvent debe mapear la razón de cancelación y preservar correlationId")
   public void testToOrderCancelledEvent() {
     TacoOrder order = new TacoOrder();
     order.setId("ORDER_777");
     order.setStatus(OrderStatus.CANCELLED);
     order.setDeliveryName("Charlie Brown");
 
-    OrderEvent event = mapper.toOrderCancelledEvent(order, "Customer changed mind");
+    OrderEvent event = mapper.toOrderCancelledEvent(order, "Customer changed mind", "CORR_TEST_777");
 
     assertThat(event).isNotNull();
     assertThat(event.getEventType()).isEqualTo(OrderEventType.ORDER_CANCELLED);
-    assertThat(event.getCorrelationId()).isEqualTo("ORDER_777");
+    assertThat(event.getCorrelationId()).isEqualTo("CORR_TEST_777");
+    assertThat(event.getCorrelationId()).isNotEqualTo(order.getId());
     assertThat(event.getPayload().getStatus()).isEqualTo("CANCELLED");
     assertThat(event.getPayload().getCancellationReason()).isEqualTo("Customer changed mind");
   }

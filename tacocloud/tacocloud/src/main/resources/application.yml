@@ -60,9 +60,9 @@ tacocloud:
 
 
 
-#logging:
-#  level:
-#    org.springframework.data.rest: debug
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [corrId:%X{correlationId:-NONE}] - %msg%n"
 
 # tag::springBootAdminCreds[]
 # tag::springBootAdminUri[]

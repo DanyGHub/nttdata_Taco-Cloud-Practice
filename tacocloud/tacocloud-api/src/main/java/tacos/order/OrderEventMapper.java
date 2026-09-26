@@ -8,33 +8,49 @@ import org.springframework.stereotype.Component;
 import tacos.Ingredient;
 import tacos.Taco;
 import tacos.TacoOrder;
+import tacos.correlation.CorrelationContext;
 import tacos.messaging.OrderEvent;
 import tacos.messaging.OrderEventIngredientPayload;
 import tacos.messaging.OrderEventItemPayload;
 import tacos.messaging.OrderEventPayload;
 import tacos.messaging.OrderEventType;
 
-/**
- * Mapper para transformar entidades de dominio TacoOrder a eventos canónicos versionados OrderEvent.
- * Garantiza el aislamiento de persistencia y la sanitización de datos sensibles.
- */
+
+  //Transformar entidades de dominio TacoOrder a eventos canónicos versionados OrderEvent.
+
 @Component
 public class OrderEventMapper {
 
   public OrderEvent toOrderCreatedEvent(TacoOrder order) {
-    return toEvent(order, OrderEventType.ORDER_CREATED, null, null);
+    return toOrderCreatedEvent(order, CorrelationContext.getOrGenerate());
+  }
+
+  public OrderEvent toOrderCreatedEvent(TacoOrder order, String correlationId) {
+    return toEvent(order, OrderEventType.ORDER_CREATED, null, null, correlationId);
   }
 
   public OrderEvent toStatusChangedEvent(TacoOrder order, OrderStatus previousStatus) {
+    return toStatusChangedEvent(order, previousStatus, CorrelationContext.getOrGenerate());
+  }
+
+  public OrderEvent toStatusChangedEvent(TacoOrder order, OrderStatus previousStatus, String correlationId) {
     String prev = previousStatus != null ? previousStatus.name() : null;
-    return toEvent(order, OrderEventType.ORDER_STATUS_CHANGED, prev, null);
+    return toEvent(order, OrderEventType.ORDER_STATUS_CHANGED, prev, null, correlationId);
   }
 
   public OrderEvent toOrderCancelledEvent(TacoOrder order, String reason) {
-    return toEvent(order, OrderEventType.ORDER_CANCELLED, null, reason);
+    return toOrderCancelledEvent(order, reason, CorrelationContext.getOrGenerate());
+  }
+
+  public OrderEvent toOrderCancelledEvent(TacoOrder order, String reason, String correlationId) {
+    return toEvent(order, OrderEventType.ORDER_CANCELLED, null, reason, correlationId);
   }
 
   public OrderEvent toEvent(TacoOrder order, OrderEventType eventType, String previousStatus, String reason) {
+    return toEvent(order, eventType, previousStatus, reason, CorrelationContext.getOrGenerate());
+  }
+
+  public OrderEvent toEvent(TacoOrder order, OrderEventType eventType, String previousStatus, String reason, String correlationId) {
     if (order == null) {
       return null;
     }
@@ -83,7 +99,11 @@ public class OrderEventMapper {
         .cancellationReason(reason)
         .build();
 
-    return OrderEvent.of(eventType, order.getId(), payload);
+    String corrId = (correlationId != null && !correlationId.trim().isEmpty())
+        ? correlationId.trim()
+        : CorrelationContext.getOrGenerate();
+
+    return OrderEvent.of(eventType, corrId, payload);
   }
 
 }

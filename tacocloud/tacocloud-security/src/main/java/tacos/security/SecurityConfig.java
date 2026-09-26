@@ -50,7 +50,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "/error",
             "/styles.css", "/styles/**", "/scripts/**", "/images/**", "/assets/**", "/webjars/**",
             "/*.bundle.js", "/*.bundle.js.map", "/*.js", "/*.css",
-            "/design", "/cart", "/recents", "/specials", "/locations", "/home"
+            "/design", "/cart", "/recents", "/specials", "/locations", "/home",
+            "/ui", "/ui/**"
         ).permitAll()
 
         // 3. Catálogo público: Lectura de ingredientes y tacos

@@ -46,17 +46,21 @@ public class OrderPlacementService {
   }
 
   public Mono<TacoOrder> placeOrder(TacoOrder order) {
-    OrderEvent event = orderEventMapper.toOrderCreatedEvent(order);
+    String correlationId = tacos.correlation.CorrelationContext.getOrGenerate();
+    OrderEvent event = orderEventMapper.toOrderCreatedEvent(order, correlationId);
     return placeOrder(order, event);
   }
 
   public Mono<TacoOrder> placeOrder(TacoOrder order, OrderEvent event) {
+    String correlationId = (event != null && event.getCorrelationId() != null && !event.getCorrelationId().trim().isEmpty())
+        ? event.getCorrelationId()
+        : tacos.correlation.CorrelationContext.getOrGenerate();
     Date now = new Date();
     OutboxEvent outbox = OutboxEvent.builder()
         .eventId(event.getEventId())
         .eventType(event.getEventType().name())
         .version(event.getVersion())
-        .correlationId(order.getId())
+        .correlationId(correlationId)
         .payload(event.getPayload())
         .status(OutboxStatus.NEW)
         .attempts(0)
@@ -68,7 +72,7 @@ public class OrderPlacementService {
 
     Mono<TacoOrder> savePipeline = orderRepo.save(order)
         .flatMap(savedOrder -> {
-          outbox.setCorrelationId(savedOrder.getId());
+          outbox.setCorrelationId(correlationId);
           if (outbox.getPayload() != null && outbox.getPayload().getOrderId() == null) {
             outbox.getPayload().setOrderId(savedOrder.getId());
           }
@@ -76,7 +80,8 @@ public class OrderPlacementService {
               .doOnSuccess(savedOutbox -> log.info("Outbox event created with status NEW: id={}, eventId={}, correlationId={}",
                   savedOutbox.getId(), savedOutbox.getEventId(), savedOutbox.getCorrelationId()))
               .thenReturn(savedOrder);
-        });
+        })
+        .contextWrite(ctx -> tacos.correlation.CorrelationContext.withCorrelationId(ctx, correlationId));
 
     if (transactionsEnabled && transactionalOperator != null) {
       log.debug("Executing placeOrder within reactive MongoDB transaction");

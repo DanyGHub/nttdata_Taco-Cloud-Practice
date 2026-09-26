@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -53,46 +54,48 @@ public class OrderProcessingWorkflow {
    * La llave de idempotencia es eventId.
    */
   public void processOrderEvent(OrderEvent event) {
-    metrics.incrementReceived();
-
-    // 1. Validación permanente de contrato
-    validateContract(event);
-
-    final String eventId = event.getEventId();
-
-    // 2. Verificación previa de idempotencia
-    if (processedEventRepository.existsByEventId(eventId)) {
-      metrics.incrementDuplicate();
-      log.info("[IDEMPOTENCY] Duplicate eventId '{}' detected. Acknowledging message without duplicate business effect.",
-          eventId);
-      return;
-    }
-
-    // 3. Ejecución del efecto de negocio durable
-    String resultSummary = applyBusinessEffect(event);
-
-    // 4. Registro durable del evento procesado
+    String corrId = (event != null && event.getCorrelationId() != null && !event.getCorrelationId().trim().isEmpty())
+        ? event.getCorrelationId().trim()
+        : "NONE";
+    MDC.put("correlationId", corrId);
     try {
-      ProcessedEvent record = ProcessedEvent.builder()
-          .eventId(eventId)
-          .eventType(event.getEventType().name())
-          .version(event.getVersion())
-          .orderId(event.getPayload() != null ? event.getPayload().getOrderId() : null)
-          .correlationId(event.getCorrelationId())
-          .processedAt(new Date())
-          .status(ProcessedStatus.PROCESSED)
-          .resultSummary(resultSummary)
-          .build();
+      metrics.incrementReceived();
 
-      processedEventRepository.save(record);
-      metrics.incrementProcessed();
-      log.info("[WORKFLOW] Successfully processed eventId '{}' for orderId '{}' ({})",
-          eventId, record.getOrderId(), resultSummary);
+      validateContract(event);
+      final String eventId = event.getEventId();
 
-    } catch (DuplicateKeyException dke) {
-      // Manejo de condición de carrera concurrente
-      metrics.incrementDuplicate();
-      log.warn("[IDEMPOTENCY] Concurrent duplicate eventId '{}' caught via unique index. Confirmed safely.", eventId);
+      if (processedEventRepository.existsByEventId(eventId)) {
+        metrics.incrementDuplicate();
+        log.info("[IDEMPOTENCY] Duplicate eventId '{}' detected. Acknowledging message without duplicate business effect.",
+            eventId);
+        return;
+      }
+
+      String resultSummary = applyBusinessEffect(event);
+
+      try {
+        ProcessedEvent record = ProcessedEvent.builder()
+            .eventId(eventId)
+            .eventType(event.getEventType().name())
+            .version(event.getVersion())
+            .orderId(event.getPayload() != null ? event.getPayload().getOrderId() : null)
+            .correlationId(event.getCorrelationId())
+            .processedAt(new Date())
+            .status(ProcessedStatus.PROCESSED)
+            .resultSummary(resultSummary)
+            .build();
+
+        processedEventRepository.save(record);
+        metrics.incrementProcessed();
+        log.info("[WORKFLOW] Successfully processed eventId '{}' for orderId '{}' ({})",
+            eventId, record.getOrderId(), resultSummary);
+
+      } catch (DuplicateKeyException dke) {
+        metrics.incrementDuplicate();
+        log.warn("[IDEMPOTENCY] Concurrent duplicate eventId '{}' caught via unique index. Confirmed safely.", eventId);
+      }
+    } finally {
+      MDC.remove("correlationId");
     }
   }
 
