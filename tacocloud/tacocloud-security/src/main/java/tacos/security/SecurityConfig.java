@@ -61,7 +61,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .antMatchers(HttpMethod.POST, "/api/users").permitAll()
 
         // 5. Actuator: Base, Health e Info públicos; el resto sólo ADMIN
-        .antMatchers(HttpMethod.GET, "/actuator", "/actuator/health", "/actuator/info").permitAll()
+        .antMatchers(HttpMethod.GET, "/actuator", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
         .antMatchers("/actuator/**").hasRole("ADMIN")
 
         // 6. Spring Data REST (/data-api/**)

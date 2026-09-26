@@ -31,6 +31,7 @@ public class OutboxPublisher {
   private final long lockDurationMs;
   private final int maxRetries;
   private final long backoffMultiplierMs;
+  private final tacos.metrics.TacoBusinessMetrics metrics;
 
   @Autowired
   public OutboxPublisher(
@@ -40,7 +41,8 @@ public class OutboxPublisher {
       @Value("${tacocloud.outbox.batch-size:10}") int batchSize,
       @Value("${tacocloud.outbox.lock-duration-ms:30000}") long lockDurationMs,
       @Value("${tacocloud.outbox.max-retries:5}") int maxRetries,
-      @Value("${tacocloud.outbox.backoff-multiplier-ms:2000}") long backoffMultiplierMs) {
+      @Value("${tacocloud.outbox.backoff-multiplier-ms:2000}") long backoffMultiplierMs,
+      @Autowired(required = false) tacos.metrics.TacoBusinessMetrics metrics) {
     this.outboxService = outboxService;
     this.orderMessagingService = orderMessagingService;
     this.instanceId = "publisher-" + UUID.randomUUID().toString().substring(0, 8);
@@ -49,6 +51,18 @@ public class OutboxPublisher {
     this.lockDurationMs = lockDurationMs;
     this.maxRetries = maxRetries;
     this.backoffMultiplierMs = backoffMultiplierMs;
+    this.metrics = metrics;
+  }
+
+  public OutboxPublisher(
+      OutboxService outboxService,
+      OrderMessagingService orderMessagingService,
+      boolean enabled,
+      int batchSize,
+      long lockDurationMs,
+      int maxRetries,
+      long backoffMultiplierMs) {
+    this(outboxService, orderMessagingService, enabled, batchSize, lockDurationMs, maxRetries, backoffMultiplierMs, null);
   }
 
   public String getInstanceId() {
@@ -110,10 +124,18 @@ public class OutboxPublisher {
             orderMessagingService.sendOrder(event);
             log.info("Publisher [{}] successfully dispatched outbox event: id={}, eventId={}",
                 instanceId, claimed.getId(), claimed.getEventId());
-            return outboxService.markPublished(claimed.getId(), new Date());
+            return outboxService.markPublished(claimed.getId(), new Date())
+                .doOnSuccess(pub -> {
+                  if (metrics != null) {
+                    metrics.decrementOutboxBacklog();
+                  }
+                });
           } catch (Throwable ex) {
             log.warn("Publisher [{}] failed to dispatch outbox event {}: {}",
                 instanceId, claimed.getId(), ex.getMessage());
+            if (metrics != null) {
+              metrics.recordOrderFailed("OUTBOX", "DISPATCH_FAILED");
+            }
             int max = claimed.getMaxAttempts() > 0 ? claimed.getMaxAttempts() : maxRetries;
             return outboxService.markFailed(claimed.getId(), ex, claimed.getAttempts(), max, backoffMultiplierMs, new Date());
           }

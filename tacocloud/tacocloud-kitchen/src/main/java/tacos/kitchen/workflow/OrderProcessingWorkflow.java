@@ -54,6 +54,7 @@ public class OrderProcessingWorkflow {
    * La llave de idempotencia es eventId.
    */
   public void processOrderEvent(OrderEvent event) {
+    long startTime = System.currentTimeMillis();
     String corrId = (event != null && event.getCorrelationId() != null && !event.getCorrelationId().trim().isEmpty())
         ? event.getCorrelationId().trim()
         : "NONE";
@@ -87,6 +88,7 @@ public class OrderProcessingWorkflow {
 
         processedEventRepository.save(record);
         metrics.incrementProcessed();
+        metrics.recordProcessingTime(System.currentTimeMillis() - startTime, "SUCCESS");
         log.info("[WORKFLOW] Successfully processed eventId '{}' for orderId '{}' ({})",
             eventId, record.getOrderId(), resultSummary);
 
@@ -94,6 +96,9 @@ public class OrderProcessingWorkflow {
         metrics.incrementDuplicate();
         log.warn("[IDEMPOTENCY] Concurrent duplicate eventId '{}' caught via unique index. Confirmed safely.", eventId);
       }
+    } catch (RuntimeException re) {
+      metrics.recordProcessingTime(System.currentTimeMillis() - startTime, "FAILURE");
+      throw re;
     } finally {
       MDC.remove("correlationId");
     }

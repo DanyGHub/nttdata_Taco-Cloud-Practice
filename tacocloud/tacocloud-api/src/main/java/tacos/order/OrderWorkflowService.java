@@ -39,6 +39,7 @@ public class OrderWorkflowService {
   private final OrderMapper orderMapper;
   private final OrderMessagingService orderMessages;
   private final OrderEventMapper orderEventMapper;
+  private final tacos.metrics.TacoBusinessMetrics metrics;
 
   private static final Map<OrderStatus, Map<OrderStatus, Set<String>>> TRANSITION_MATRIX = new HashMap<>();
 
@@ -83,19 +84,30 @@ public class OrderWorkflowService {
       InventoryService inventoryService,
       OrderMapper orderMapper,
       @Autowired(required = false) OrderMessagingService orderMessages,
-      @Autowired(required = false) OrderEventMapper orderEventMapper) {
+      @Autowired(required = false) OrderEventMapper orderEventMapper,
+      @Autowired(required = false) tacos.metrics.TacoBusinessMetrics metrics) {
     this.orderRepo = orderRepo;
     this.inventoryService = inventoryService;
     this.orderMapper = orderMapper != null ? orderMapper : new OrderMapper();
     this.orderMessages = orderMessages;
     this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
+    this.metrics = metrics;
+  }
+
+  public OrderWorkflowService(
+      OrderRepository orderRepo,
+      InventoryService inventoryService,
+      OrderMapper orderMapper,
+      OrderMessagingService orderMessages,
+      OrderEventMapper orderEventMapper) {
+    this(orderRepo, inventoryService, orderMapper, orderMessages, orderEventMapper, null);
   }
 
   public OrderWorkflowService(
       OrderRepository orderRepo,
       InventoryService inventoryService,
       OrderMapper orderMapper) {
-    this(orderRepo, inventoryService, orderMapper, null, null);
+    this(orderRepo, inventoryService, orderMapper, null, null, null);
   }
 
   public Mono<ResponseEntity<OrderResponse>> updateOrderStatus(
@@ -234,6 +246,9 @@ public class OrderWorkflowService {
                 log.info("Order {} successfully cancelled by '{}' ({})", saved.getId(), changedBy, role);
                 if (orderMessages != null && orderEventMapper != null) {
                   orderMessages.sendOrder(orderEventMapper.toOrderCancelledEvent(saved, reason));
+                }
+                if (metrics != null) {
+                  metrics.recordOrderCancelled(isAdmin ? "ADMIN_REQUEST" : "USER_REQUEST");
                 }
                 return ResponseEntity.ok(orderMapper.toResponse(saved));
               });

@@ -2,15 +2,18 @@ package tacos.kitchen.metrics;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 @Component
 public class KitchenConsumerMetrics {
 
+  private final MeterRegistry meterRegistry;
   private final Counter receivedCounter;
   private final Counter processedCounter;
   private final Counter duplicateCounter;
@@ -19,6 +22,7 @@ public class KitchenConsumerMetrics {
   private final Counter replayedCounter;
 
   public KitchenConsumerMetrics(MeterRegistry meterRegistry) {
+    this.meterRegistry = meterRegistry;
     this.receivedCounter = Counter.builder("kitchen.orders.received")
         .description("Total messages received by kitchen consumer listeners")
         .register(meterRegistry);
@@ -101,6 +105,15 @@ public class KitchenConsumerMetrics {
     summary.put("dlq", getDlqCount());
     summary.put("replayed", getReplayedCount());
     return summary;
+  }
+
+  public void recordProcessingTime(long durationMillis, String result) {
+    String safeResult = result != null ? result.toUpperCase() : "SUCCESS";
+    Timer.builder("tacocloud.kitchen.processing.time")
+        .description("Latency of kitchen order processing")
+        .tag("result", safeResult)
+        .register(meterRegistry)
+        .record(durationMillis, TimeUnit.MILLISECONDS);
   }
 
 }

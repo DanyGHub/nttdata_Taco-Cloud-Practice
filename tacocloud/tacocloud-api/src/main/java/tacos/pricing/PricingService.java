@@ -32,15 +32,24 @@ public class PricingService {
 
   private final IngredientRepository ingredientRepo;
   private final CouponService couponService;
+  private final tacos.metrics.TacoBusinessMetrics metrics;
 
   @Autowired
-  public PricingService(IngredientRepository ingredientRepo, CouponService couponService) {
+  public PricingService(
+      IngredientRepository ingredientRepo,
+      CouponService couponService,
+      @Autowired(required = false) tacos.metrics.TacoBusinessMetrics metrics) {
     this.ingredientRepo = ingredientRepo;
     this.couponService = couponService;
+    this.metrics = metrics;
+  }
+
+  public PricingService(IngredientRepository ingredientRepo, CouponService couponService) {
+    this(ingredientRepo, couponService, null);
   }
 
   public PricingService(IngredientRepository ingredientRepo) {
-    this(ingredientRepo, null);
+    this(ingredientRepo, null, null);
   }
 
   public Mono<TacoOrder> calculateAndApplyPricing(TacoOrder order) {
@@ -121,9 +130,21 @@ public class PricingService {
           discount = couponResult.getDiscountAmount();
           order.setCouponCode(couponResult.getCode());
           order.setDiscountAmount(discount);
+          if (metrics != null) {
+            String type = couponResult.getDiscountType() != null
+                ? couponResult.getDiscountType().name()
+                : "PERCENTAGE";
+            metrics.recordCouponApplied(type, "SUCCESS");
+          }
         } else {
           log.info("Coupon code '{}' could not be applied: {}", order.getCouponCode(), couponResult.getMessage());
           order.setDiscountAmount(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));
+          if (metrics != null) {
+            String type = couponResult.getDiscountType() != null
+                ? couponResult.getDiscountType().name()
+                : "NONE";
+            metrics.recordCouponApplied(type, "REJECTED");
+          }
         }
       } else {
         order.setDiscountAmount(BigDecimal.ZERO.setScale(2, DEFAULT_ROUNDING_MODE));

@@ -35,11 +35,20 @@ public class MongoInventoryService implements InventoryService {
 
   private final ReactiveMongoTemplate mongoTemplate;
   private final StockReservationRepository reservationRepo;
+  private final tacos.metrics.TacoBusinessMetrics metrics;
 
   @Autowired
-  public MongoInventoryService(ReactiveMongoTemplate mongoTemplate, StockReservationRepository reservationRepo) {
+  public MongoInventoryService(
+      ReactiveMongoTemplate mongoTemplate,
+      StockReservationRepository reservationRepo,
+      @Autowired(required = false) tacos.metrics.TacoBusinessMetrics metrics) {
     this.mongoTemplate = mongoTemplate;
     this.reservationRepo = reservationRepo;
+    this.metrics = metrics;
+  }
+
+  public MongoInventoryService(ReactiveMongoTemplate mongoTemplate, StockReservationRepository reservationRepo) {
+    this(mongoTemplate, reservationRepo, null);
   }
 
   @Override
@@ -126,6 +135,10 @@ public class MongoInventoryService implements InventoryService {
           } else {
             log.warn("Atomic reservation failed for ingredient {} (requested: {}). Initiating compensation.",
                 current.getIngredientId(), current.getQuantity());
+
+            if (metrics != null) {
+              metrics.recordStockRejected(current.getIngredientId());
+            }
 
             return compensate(reservedSoFar)
                 .then(mongoTemplate.findById(current.getIngredientId(), Ingredient.class)

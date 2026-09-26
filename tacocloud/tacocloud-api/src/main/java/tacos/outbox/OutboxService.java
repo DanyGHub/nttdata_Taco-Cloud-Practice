@@ -176,4 +176,18 @@ public class OutboxService {
         });
   }
 
+  public Mono<Long> countPending() {
+    Criteria criteria = new Criteria().orOperator(
+        Criteria.where("status").is(OutboxStatus.NEW),
+        Criteria.where("status").is(OutboxStatus.PUBLISHING),
+        Criteria.where("status").is(OutboxStatus.FAILED)
+    );
+    return mongoTemplate.count(new Query(criteria), OutboxEvent.class);
+  }
+
+  public Mono<Long> countFailed() {
+    Query query = Query.query(Criteria.where("status").is(OutboxStatus.FAILED));
+    return mongoTemplate.count(query, OutboxEvent.class);
+  }
+
 }

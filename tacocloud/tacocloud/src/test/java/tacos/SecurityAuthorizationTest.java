@@ -229,6 +229,37 @@ public class SecurityAuthorizationTest {
         .andExpect(status().isOk());
   }
 
+  // --- TC-32: Actuator Health Probes & Business Metrics ---
+
+  @Test
+  @DisplayName("TC-32 Actuator: /actuator/health/liveness es accesible anónimamente (200 OK)")
+  public void actuatorHealthLiveness_anonymous_shouldReturn200() throws Exception {
+    mockMvc.perform(get("/actuator/health/liveness"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-32 Actuator: /actuator/health/readiness es accesible anónimamente (200 OK)")
+  public void actuatorHealthReadiness_anonymous_shouldReturn200() throws Exception {
+    mockMvc.perform(get("/actuator/health/readiness"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-32 Actuator: /actuator/metrics/tacocloud.orders.created es accesible para ADMIN (200 OK)")
+  public void actuatorBusinessMetrics_adminRole_shouldReturn200() throws Exception {
+    mockMvc.perform(get("/actuator/metrics/tacocloud.orders.created")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-32 Actuator: /actuator/metrics/tacocloud.orders.created es rechazado para anónimo (401 Unauthorized)")
+  public void actuatorBusinessMetrics_anonymous_shouldReturn401() throws Exception {
+    mockMvc.perform(get("/actuator/metrics/tacocloud.orders.created"))
+        .andExpect(status().isUnauthorized());
+  }
+
   @Test
   @DisplayName("TC-11 Data REST: /data-api es rechazado para USER (403 Forbidden)")
   public void dataRest_userRole_shouldReturn403() throws Exception {

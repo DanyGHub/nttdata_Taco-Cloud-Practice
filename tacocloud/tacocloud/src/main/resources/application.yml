@@ -119,12 +119,17 @@ management:
 #end::exposeAll[]
         exclude: threaddump,heapdump
 #end::excludeSome[]
-#tag::healthShowDetails[]
   endpoint:
     health:
       show-details: when-authorized
-#end::healthShowDetails[]
+      show-components: when-authorized
+      probes:
+        enabled: true
   health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
     rabbit:
       enabled: false
     jms:

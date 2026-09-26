@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderEvent;
+import tacos.metrics.TacoBusinessMetrics;
 import tacos.outbox.OutboxEvent;
 import tacos.outbox.OutboxService;
 import tacos.outbox.OutboxStatus;
@@ -28,6 +29,7 @@ public class OrderPlacementService {
   private final OrderEventMapper orderEventMapper;
   private final boolean transactionsEnabled;
   private final int maxRetries;
+  private final TacoBusinessMetrics metrics;
 
   @Autowired
   public OrderPlacementService(
@@ -36,13 +38,25 @@ public class OrderPlacementService {
       @Autowired(required = false) TransactionalOperator transactionalOperator,
       @Autowired(required = false) OrderEventMapper orderEventMapper,
       @Value("${tacocloud.mongo.transactions.enabled:true}") boolean transactionsEnabled,
-      @Value("${tacocloud.outbox.max-retries:5}") int maxRetries) {
+      @Value("${tacocloud.outbox.max-retries:5}") int maxRetries,
+      @Autowired(required = false) TacoBusinessMetrics metrics) {
     this.orderRepo = orderRepo;
     this.outboxService = outboxService;
     this.transactionalOperator = transactionalOperator;
     this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
     this.transactionsEnabled = transactionsEnabled;
     this.maxRetries = maxRetries;
+    this.metrics = metrics;
+  }
+
+  public OrderPlacementService(
+      OrderRepository orderRepo,
+      OutboxService outboxService,
+      TransactionalOperator transactionalOperator,
+      OrderEventMapper orderEventMapper,
+      boolean transactionsEnabled,
+      int maxRetries) {
+    this(orderRepo, outboxService, transactionalOperator, orderEventMapper, transactionsEnabled, maxRetries, null);
   }
 
   public Mono<TacoOrder> placeOrder(TacoOrder order) {
@@ -52,6 +66,7 @@ public class OrderPlacementService {
   }
 
   public Mono<TacoOrder> placeOrder(TacoOrder order, OrderEvent event) {
+    final long startTime = System.currentTimeMillis();
     String correlationId = (event != null && event.getCorrelationId() != null && !event.getCorrelationId().trim().isEmpty())
         ? event.getCorrelationId()
         : tacos.correlation.CorrelationContext.getOrGenerate();
@@ -80,6 +95,21 @@ public class OrderPlacementService {
               .doOnSuccess(savedOutbox -> log.info("Outbox event created with status NEW: id={}, eventId={}, correlationId={}",
                   savedOutbox.getId(), savedOutbox.getEventId(), savedOutbox.getCorrelationId()))
               .thenReturn(savedOrder);
+        })
+        .doOnSuccess(saved -> {
+          if (metrics != null) {
+            long duration = System.currentTimeMillis() - startTime;
+            metrics.recordPlacementTime(duration, "SUCCESS");
+            metrics.recordOrderCreated("API", "CREATED");
+            metrics.incrementOutboxBacklog();
+          }
+        })
+        .doOnError(err -> {
+          if (metrics != null) {
+            long duration = System.currentTimeMillis() - startTime;
+            metrics.recordPlacementTime(duration, "FAILURE");
+            metrics.recordOrderFailed("API", err.getClass().getSimpleName());
+          }
         })
         .contextWrite(ctx -> tacos.correlation.CorrelationContext.withCorrelationId(ctx, correlationId));
 
