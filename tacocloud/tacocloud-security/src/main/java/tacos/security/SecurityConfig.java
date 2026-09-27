@@ -54,14 +54,14 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "/ui", "/ui/**"
         ).permitAll()
 
-        // 3. Catálogo público: Lectura de ingredientes y tacos
-        .antMatchers(HttpMethod.GET, "/api/ingredients/**", "/api/tacos/**").permitAll()
+        // 3. Catálogo público: Lectura de ingredientes, tacos y anuncios operativos
+        .antMatchers(HttpMethod.GET, "/api/ingredients/**", "/api/tacos/**", "/api/announcements", "/api/announcements/**").permitAll()
 
         // 4. Registro de usuarios REST
         .antMatchers(HttpMethod.POST, "/api/users").permitAll()
 
-        // 5. Actuator: Base, Health e Info públicos; el resto sólo ADMIN
-        .antMatchers(HttpMethod.GET, "/actuator", "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+        // 5. Actuator: Base, Health, Info y Lectura de Anuncios públicos; el resto sólo ADMIN
+        .antMatchers(HttpMethod.GET, "/actuator", "/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/announcements").permitAll()
         .antMatchers("/actuator/**").hasRole("ADMIN")
 
         // 6. Spring Data REST (/data-api/**)

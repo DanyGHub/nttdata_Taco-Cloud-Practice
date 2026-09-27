@@ -229,7 +229,7 @@ public class SecurityAuthorizationTest {
         .andExpect(status().isOk());
   }
 
-  // --- TC-32: Actuator Health Probes & Business Metrics ---
+  // TC-32: Actuator Health Probes & Business Metrics ---
 
   @Test
   @DisplayName("TC-32 Actuator: /actuator/health/liveness es accesible anónimamente (200 OK)")
@@ -331,4 +331,75 @@ public class SecurityAuthorizationTest {
             .content(payload))
         .andExpect(status().isOk());
   }
+
+  // TC-33: Anuncios Operativos Seguros (OpsAnnouncement) ---
+
+  @Test
+  @DisplayName("TC-33: Anónimo puede consultar anuncios operativos públicos /api/announcements (200 OK)")
+  public void publicAnnouncements_anonymous_shouldReturn200() throws Exception {
+    mockMvc.perform(get("/api/announcements"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-33: Anónimo intentando crear anuncio es rechazado (401 Unauthorized)")
+  public void adminAnnouncementsCreate_anonymous_shouldReturn401() throws Exception {
+    String payload = "{\"message\":\"Aviso operacional\",\"severity\":\"INFO\"}";
+    mockMvc.perform(post("/api/admin/announcements")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("TC-33: USER intentando crear anuncio es rechazado (403 Forbidden)")
+  public void adminAnnouncementsCreate_userRole_shouldReturn403() throws Exception {
+    String payload = "{\"message\":\"Aviso operacional\",\"severity\":\"INFO\"}";
+    mockMvc.perform(post("/api/admin/announcements")
+            .with(user("habuma").roles("USER"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("TC-33: ADMIN puede crear y consultar anuncios operativos (201 Created y 200 OK)")
+  public void adminAnnouncements_adminRole_shouldSucceed() throws Exception {
+    String payload = "{\"message\":\"Mantenimiento programado\",\"severity\":\"WARN\",\"durationMinutes\":120}";
+    mockMvc.perform(post("/api/admin/announcements")
+            .with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isCreated());
+
+    mockMvc.perform(get("/api/admin/announcements")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-33: USER intentando eliminar anuncio es rechazado (403 Forbidden)")
+  public void adminAnnouncementsDelete_userRole_shouldReturn403() throws Exception {
+    mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/admin/announcements/some-id")
+            .with(user("habuma").roles("USER")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("TC-33: Anónimo puede consultar /actuator/announcements (200 OK)")
+  public void actuatorAnnouncements_anonymous_shouldReturn200() throws Exception {
+    mockMvc.perform(get("/actuator/announcements"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("TC-33: Anónimo intentando escribir en /actuator/announcements es rechazado (401 Unauthorized)")
+  public void actuatorAnnouncementsWrite_anonymous_shouldReturn401() throws Exception {
+    String payload = "{\"message\":\"Aviso via actuator\"}";
+    mockMvc.perform(post("/actuator/announcements")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isUnauthorized());
+  }
 }
+
