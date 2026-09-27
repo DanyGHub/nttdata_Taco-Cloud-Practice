@@ -15,7 +15,7 @@ import tacos.web.api.dto.CouponValidateRequest;
 import tacos.web.api.dto.CouponValidateResponse;
 
 @RestController
-@RequestMapping(path = "/api/coupons", produces = "application/json")
+@RequestMapping(path = {"/api/v1/coupons", "/api/coupons"}, produces = "application/json")
 public class CouponController {
 
   private final CouponService couponService;

@@ -57,7 +57,7 @@ import tacos.web.api.dto.TacoResponse;
 import tacos.web.api.dto.TopTacoResponse;
 
 @RestController
-@RequestMapping(path = "/api/tacos", produces = "application/json")
+@RequestMapping(path = {"/api/v1/tacos", "/api/tacos"}, produces = "application/json")
 @CrossOrigin(origins="http://localhost:8080")
 public class TacoController {
 

@@ -66,7 +66,7 @@ import tacos.physics.TacoDesignValidator;
 import org.bson.types.ObjectId;
 
 @RestController
-@RequestMapping(path="/api/orders",
+@RequestMapping(path={"/api/v1/orders", "/api/orders"},
                 produces="application/json")
 @CrossOrigin(origins="http://localhost:8080")
 public class OrderApiController {

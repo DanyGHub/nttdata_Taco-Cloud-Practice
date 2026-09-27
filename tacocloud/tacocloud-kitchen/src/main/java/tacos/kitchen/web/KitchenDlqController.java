@@ -20,7 +20,7 @@ import tacos.kitchen.repository.ProcessedEventRepository;
 import tacos.kitchen.workflow.OrderProcessingWorkflow;
 
 @RestController
-@RequestMapping("/api/kitchen")
+@RequestMapping({"/api/v1/kitchen", "/api/kitchen"})
 @RequiredArgsConstructor
 public class KitchenDlqController {
 

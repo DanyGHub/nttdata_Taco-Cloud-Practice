@@ -24,7 +24,7 @@ import tacos.User;
 import tacos.data.UserRepository;
 
 @Controller
-@RequestMapping({"/register", "/api/users"})
+@RequestMapping({"/register", "/api/v1/users", "/api/users"})
 public class RegistrationController {
 
   private static final Logger log = LoggerFactory.getLogger(RegistrationController.class);

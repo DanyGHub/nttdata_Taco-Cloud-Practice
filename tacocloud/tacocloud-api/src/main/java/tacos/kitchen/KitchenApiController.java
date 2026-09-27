@@ -28,7 +28,7 @@ import tacos.kitchen.dto.KitchenStatusUpdateRequest;
  * - PATCH /api/kitchen/orders/{id}/status : Avance de preparación (PREPARING, READY).
  */
 @RestController
-@RequestMapping(path = "/api/kitchen", produces = "application/json")
+@RequestMapping(path = {"/api/v1/kitchen", "/api/kitchen"}, produces = "application/json")
 @CrossOrigin(origins = "http://localhost:8080")
 public class KitchenApiController {
 

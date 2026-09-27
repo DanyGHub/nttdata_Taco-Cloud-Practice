@@ -34,26 +34,26 @@ public class OpsAnnouncementController {
     this.service = service;
   }
 
-  // --- Endpoints Públicos (/api/announcements) ---
+  // --- Endpoints Públicos (/api/v1/announcements, /api/announcements) ---
 
-  @GetMapping("/api/announcements")
+  @GetMapping({"/api/v1/announcements", "/api/announcements"})
   public Flux<OpsAnnouncementDto> getActiveAnnouncements() {
     return service.getActiveAnnouncements();
   }
 
-  // --- Endpoints Administrativos (/api/admin/announcements) ---
+  // --- Endpoints Administrativos (/api/v1/admin/announcements, /api/admin/announcements) ---
 
-  @GetMapping("/api/admin/announcements")
+  @GetMapping({"/api/v1/admin/announcements", "/api/admin/announcements"})
   public Flux<OpsAnnouncementAdminDto> getAllAnnouncementsAdmin() {
     return service.getAllAnnouncements();
   }
 
-  @GetMapping("/api/admin/announcements/{id}")
+  @GetMapping({"/api/v1/admin/announcements/{id}", "/api/admin/announcements/{id}"})
   public Mono<OpsAnnouncementAdminDto> getAnnouncementByIdAdmin(@PathVariable("id") String id) {
     return service.getAnnouncementById(id);
   }
 
-  @PostMapping("/api/admin/announcements")
+  @PostMapping({"/api/v1/admin/announcements", "/api/admin/announcements"})
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<ResponseEntity<OpsAnnouncementAdminDto>> createAnnouncement(
       @Valid @RequestBody OpsAnnouncementRequest request,
@@ -63,20 +63,20 @@ public class OpsAnnouncementController {
         .map(created -> ResponseEntity.status(HttpStatus.CREATED).body(created));
   }
 
-  @DeleteMapping("/api/admin/announcements/{id}")
+  @DeleteMapping({"/api/v1/admin/announcements/{id}", "/api/admin/announcements/{id}"})
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public Mono<ResponseEntity<Void>> deleteAnnouncement(@PathVariable("id") String id) {
     return service.deleteAnnouncement(id)
         .thenReturn(ResponseEntity.noContent().<Void>build());
   }
 
-  @PatchMapping("/api/admin/announcements/{id}/deactivate")
+  @PatchMapping({"/api/v1/admin/announcements/{id}/deactivate", "/api/admin/announcements/{id}/deactivate"})
   public Mono<ResponseEntity<OpsAnnouncementAdminDto>> deactivateAnnouncement(@PathVariable("id") String id) {
     return service.deactivateAnnouncement(id)
         .map(ResponseEntity::ok);
   }
 
-  @PostMapping("/api/admin/announcements/purge")
+  @PostMapping({"/api/v1/admin/announcements/purge", "/api/admin/announcements/purge"})
   public Mono<ResponseEntity<Map<String, Object>>> purgeExpiredAnnouncements() {
     return service.purgeExpired()
         .map(count -> ResponseEntity.ok(Collections.singletonMap("purgedCount", count)));

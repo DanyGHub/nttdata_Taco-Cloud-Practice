@@ -26,7 +26,7 @@ import tacos.search.TacoPage;
 import tacos.web.api.dto.FavoriteResponse;
 
 @RestController
-@RequestMapping(path = "/api/users/me/favorites", produces = "application/json")
+@RequestMapping(path = {"/api/v1/users/me/favorites", "/api/users/me/favorites"}, produces = "application/json")
 @CrossOrigin(origins = "http://localhost:8080")
 public class UserFavoritesController {
 

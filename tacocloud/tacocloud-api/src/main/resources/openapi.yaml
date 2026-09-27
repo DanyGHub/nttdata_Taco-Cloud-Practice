@@ -1,0 +1,1448 @@
+openapi: 3.0.3
+info:
+  title: Taco Cloud Public API
+  version: 1.0.0
+  description: |
+    Contrato oficial OpenAPI 3.0 para Taco Cloud (Laboratorio 6 - TC-35).
+    Define los contratos de integración para ingredientes, diseño de tacos, pedidos con idempotencia
+    y trazabilidad por Correlation ID, favoritos, cupones, pasarela de pago tokenizada, operaciones de cocina y
+    anuncios operativos seguros. Incluye el modelo canónico de error RFC 7807 (ApiProblem).
+  contact:
+    name: Taco Cloud Engineering Team
+    email: support@tacocloud.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Servidor de desarrollo local (v1 Oficial)
+  - url: http://localhost:8080/api
+    description: Servidor de desarrollo local (Alias legado - Deprecado)
+
+tags:
+  - name: Ingredients
+    description: Catálogo y gestión de ingredientes
+  - name: Tacos
+    description: Catálogo de tacos, validación física, clasificación dietética y valoraciones
+  - name: Orders
+    description: Creación y gestión de pedidos con idempotencia y trazabilidad distribuida
+  - name: User Profile
+    description: Historial de pedidos y tacos favoritos del usuario autenticado
+  - name: Coupons
+    description: Validación de cupones de descuento y promociones
+  - name: Payments
+    description: Tokenización segura de métodos de pago y gestión de billetera
+  - name: Kitchen
+    description: Operaciones de cocina, cola FIFO, reclamos y Dead Letter Queue (DLQ)
+  - name: Announcements
+    description: Anuncios operativos para clientes y gestión administrativa
+
+paths:
+  /ingredients:
+    get:
+      tags: [Ingredients]
+      summary: Obtener catálogo completo de ingredientes
+      operationId: getAllIngredients
+      responses:
+        '200':
+          description: Lista de ingredientes disponibles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IngredientResponse'
+    post:
+      tags: [Ingredients]
+      summary: Crear un nuevo ingrediente (Admin)
+      operationId: createIngredient
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngredientRequest'
+      responses:
+        '201':
+          description: Ingrediente creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientResponse'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+        '403':
+          description: No autorizado (requiere rol ADMIN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+  /ingredients/{id}:
+    get:
+      tags: [Ingredients]
+      summary: Obtener un ingrediente por su identificador
+      operationId: getIngredientById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Código del ingrediente (ej. FLTO, CARN)
+          schema:
+            type: string
+            example: FLTO
+      responses:
+        '200':
+          description: Ingrediente encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientResponse'
+        '404':
+          description: Ingrediente no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+    delete:
+      tags: [Ingredients]
+      summary: Eliminar un ingrediente (Admin)
+      operationId: deleteIngredient
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Ingrediente eliminado exitosamente
+        '403':
+          description: Requiere rol ADMIN
+
+  /tacos:
+    get:
+      tags: [Tacos]
+      summary: Buscar y filtrar tacos con paginación
+      operationId: searchTacos
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: diet
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [VEGAN, VEGETARIAN, GLUTEN_FREE, KETO]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Página de tacos encontrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoPageResponse'
+    post:
+      tags: [Tacos]
+      summary: Diseñar y guardar un nuevo taco
+      operationId: postTaco
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TacoRequest'
+      responses:
+        '201':
+          description: Taco diseñado y guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoResponse'
+        '400':
+          description: Violación de reglas de diseño o campos requeridos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+  /tacos/recents:
+    get:
+      tags: [Tacos]
+      summary: Obtener los 12 tacos más recientes
+      operationId: getRecentTacos
+      responses:
+        '200':
+          description: Lista de tacos recientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TacoResponse'
+
+  /tacos/today:
+    get:
+      tags: [Tacos]
+      summary: Consultar el taco del día
+      operationId: getTacoOfTheDay
+      responses:
+        '200':
+          description: Taco del día vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoResponse'
+
+  /tacos/top:
+    get:
+      tags: [Tacos]
+      summary: Consultar ranking de tacos más votados
+      operationId: getTopTacos
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de tacos mejor puntuados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopTacoResponse'
+
+  /tacos/validate:
+    post:
+      tags: [Tacos]
+      summary: Validar viabilidad física de un diseño de taco
+      operationId: validateTacoDesign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TacoDesignRequest'
+      responses:
+        '200':
+          description: Resultado de la validación física
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoDesignValidationResponse'
+
+  /tacos/{id}:
+    get:
+      tags: [Tacos]
+      summary: Consultar detalle de un taco por ID
+      operationId: getTacoById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Taco encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoResponse'
+        '404':
+          description: Taco no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+  /tacos/{id}/rating:
+    get:
+      tags: [Tacos]
+      summary: Consultar promedio y votos de un taco
+      operationId: getTacoRating
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resumen de valoraciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoRatingSummaryResponse'
+    put:
+      tags: [Tacos]
+      summary: Emitir o actualizar puntuación para un taco (1 a 5)
+      operationId: rateTaco
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingRequest'
+      responses:
+        '200':
+          description: Calificación registrada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TacoRatingSummaryResponse'
+        '400':
+          description: Puntuación inválida (debe ser entre 1 y 5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Listar todas las órdenes (Sólo ADMIN)
+      operationId: getAllOrders
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderResponse'
+        '403':
+          description: Acceso restringido (use /api/v1/users/me/orders)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+    post:
+      tags: [Orders]
+      summary: Crear un nuevo pedido con Idempotency-Key y Correlation ID
+      operationId: createOrder
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Clave única para garantizar idempotencia en la creación (8-128 chars alfanuméricos)
+          schema:
+            type: string
+            example: idem-order-key-12345
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          description: Identificador de correlación para trazabilidad de logs y eventos (UUID o alfanumérico)
+          schema:
+            type: string
+            example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+      responses:
+        '201':
+          description: Pedido creado exitosamente (o reproducido idénticamente por idempotencia)
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/X-Correlation-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          description: Datos de pedido inválidos o formato erróneo de Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+        '409':
+          description: Conflicto - La misma Idempotency-Key fue usada previamente con un payload diferente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Consultar un pedido por su identificador
+      operationId: getOrderById
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle del pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+    delete:
+      tags: [Orders]
+      summary: Cancelar un pedido
+      operationId: cancelOrder
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Pedido cancelado
+
+  /orders/{orderId}/reorder:
+    post:
+      tags: [Orders]
+      summary: Reordenar un pedido previo
+      operationId: reorderOrder
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderRequest'
+      responses:
+        '201':
+          description: Nuevo pedido generado a partir del original
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+
+  /users/me/orders:
+    get:
+      tags: [User Profile]
+      summary: Consultar historial de pedidos del usuario autenticado
+      operationId: getMyOrders
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Historial de pedidos paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummaryPageResponse'
+
+  /users/me/orders/{id}:
+    get:
+      tags: [User Profile]
+      summary: Consultar detalle de un pedido propio
+      operationId: getMyOrderDetail
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle del pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetailResponse'
+        '404':
+          description: Pedido no encontrado o no pertenece al usuario
+
+  /users/me/favorites:
+    get:
+      tags: [User Profile]
+      summary: Listar tacos marcados como favoritos por el usuario
+      operationId: getMyFavorites
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de favoritos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FavoriteResponse'
+
+  /users/me/favorites/{tacoId}:
+    put:
+      tags: [User Profile]
+      summary: Agregar taco a favoritos
+      operationId: addFavorite
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tacoId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Taco agregado a favoritos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+    delete:
+      tags: [User Profile]
+      summary: Quitar taco de favoritos
+      operationId: removeFavorite
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tacoId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Taco removido de favoritos
+
+  /coupons/validate:
+    post:
+      tags: [Coupons]
+      summary: Validar código promocional y calcular descuento
+      operationId: validateCoupon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponValidateRequest'
+      responses:
+        '200':
+          description: Resultado de la validación del cupón
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponValidateResponse'
+
+  /payment-methods/tokenize:
+    post:
+      tags: [Payments]
+      summary: Tokenizar tarjeta de crédito para pagos futuros
+      operationId: tokenizePaymentMethod
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenizeRequest'
+      responses:
+        '201':
+          description: Tarjeta tokenizada con éxito (CVV descartado de inmediato)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodResponse'
+        '400':
+          description: Datos de tarjeta inválidos
+
+  /payment-methods:
+    get:
+      tags: [Payments]
+      summary: Listar métodos de pago guardados del usuario
+      operationId: getPaymentMethods
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Métodos de pago registrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethodResponse'
+
+  /kitchen/queue:
+    get:
+      tags: [Kitchen]
+      summary: Consultar cola de pedidos pendientes de cocina (FIFO)
+      operationId: getKitchenQueue
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cola de pedidos en espera
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KitchenOrderDto'
+
+  /kitchen/orders/claim:
+    post:
+      tags: [Kitchen]
+      summary: Reclamar atómicamente la siguiente orden para una estación
+      operationId: claimKitchenOrder
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KitchenClaimRequest'
+      responses:
+        '200':
+          description: Orden reclamada para preparación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KitchenOrderDto'
+        '204':
+          description: No hay órdenes disponibles en la cola
+
+  /kitchen/orders/{id}/status:
+    patch:
+      tags: [Kitchen]
+      summary: Actualizar estado de preparación de un pedido en cocina
+      operationId: updateKitchenOrderStatus
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KitchenStatusUpdateRequest'
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KitchenOrderDto'
+
+  /kitchen/dlq/stats:
+    get:
+      tags: [Kitchen]
+      summary: Métricas y estadísticas de la Dead Letter Queue (DLQ)
+      operationId: getKitchenDlqStats
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estadísticas de eventos procesados, fallidos y reintentados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KitchenDlqStatsResponse'
+
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: Consultar anuncios operativos vigentes para clientes
+      operationId: getActiveAnnouncements
+      responses:
+        '200':
+          description: Lista de anuncios activos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpsAnnouncementDto'
+
+  /admin/announcements:
+    get:
+      tags: [Announcements]
+      summary: Listar todos los anuncios operativos (Admin)
+      operationId: getAllAnnouncementsAdmin
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Todos los anuncios (activos y expirados)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpsAnnouncementAdminDto'
+    post:
+      tags: [Announcements]
+      summary: Publicar un nuevo anuncio operativo (Admin)
+      operationId: createAnnouncement
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsAnnouncementRequest'
+      responses:
+        '201':
+          description: Anuncio publicado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsAnnouncementAdminDto'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT para usuarios autenticados
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Autenticación básica HTTP (usuario y contraseña)
+
+  headers:
+    X-Correlation-Id:
+      description: Identificador de correlación para trazabilidad distribuida en logs y eventos
+      schema:
+        type: string
+        example: c73a218c-87d2-4e4b-9192-3d7532d84712
+    Idempotency-Key:
+      description: Clave de idempotencia única por usuario para evitar duplicidad en creación de pedidos
+      schema:
+        type: string
+        example: idem-order-key-12345
+    Deprecation:
+      description: Encabezado RFC 8594 que indica que la ruta /api es un alias legado en proceso de retiro
+      schema:
+        type: string
+        example: 'true'
+    Sunset:
+      description: Timestamp RFC 8594 indicando la fecha máxima de disponibilidad del alias legado
+      schema:
+        type: string
+        example: 'Sun, 31 Dec 2028 23:59:59 GMT'
+    Link:
+      description: Enlace estándar que apunta a la versión sucesora canónica (/api/v1)
+      schema:
+        type: string
+        example: '<http://localhost:8080/api/v1/orders>; rel="successor-version"'
+
+  schemas:
+    # --- INGREDIENTES ---
+    IngredientRequest:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          example: FLTO
+        name:
+          type: string
+          example: Flour Tortilla
+        type:
+          type: string
+          enum: [WRAP, PROTEIN, VEGGIES, CHEESE, SAUCE]
+          example: WRAP
+
+    IngredientResponse:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          example: FLTO
+        name:
+          type: string
+          example: Flour Tortilla
+        type:
+          type: string
+          example: WRAP
+
+    # --- TACOS ---
+    TacoRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 5
+          example: Carnitas Fiesta
+        ingredientIds:
+          type: array
+          items:
+            type: string
+          example: [FLTO, CARN, CHED]
+
+    TacoResponse:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          example: 64b8a1c9e4b0c23a8f123456
+        name:
+          type: string
+          example: Carnitas Fiesta
+        createdAt:
+          type: string
+          format: date-time
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngredientResponse'
+        dietaryTags:
+          type: array
+          items:
+            type: string
+          example: [GLUTEN_FREE]
+        allergens:
+          type: array
+          items:
+            type: string
+          example: [DAIRY]
+        spiceLevel:
+          type: string
+          example: MEDIUM
+
+    TacoPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/TacoResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 3
+
+    TacoDesignRequest:
+      type: object
+      required:
+        - name
+        - ingredientIds
+      properties:
+        name:
+          type: string
+          example: Supremo
+        ingredientIds:
+          type: array
+          items:
+            type: string
+          example: [FLTO, GRBF, CHED, SLSA]
+
+    TacoDesignValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          example: true
+        violations:
+          type: array
+          items:
+            type: string
+          example: []
+
+    RatingRequest:
+      type: object
+      required:
+        - score
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+
+    TacoRatingSummaryResponse:
+      type: object
+      properties:
+        tacoId:
+          type: string
+          example: 64b8a1c9e4b0c23a8f123456
+        averageScore:
+          type: number
+          format: double
+          example: 4.8
+        totalVotes:
+          type: integer
+          example: 120
+        userScore:
+          type: integer
+          example: 5
+
+    TopTacoResponse:
+      type: object
+      properties:
+        tacoId:
+          type: string
+          example: 64b8a1c9e4b0c23a8f123456
+        tacoName:
+          type: string
+          example: Carnitas Fiesta
+        averageScore:
+          type: number
+          example: 4.9
+        totalVotes:
+          type: integer
+          example: 350
+
+    # --- ÓRDENES ---
+    OrderItemRequest:
+      type: object
+      required:
+        - taco
+        - quantity
+      properties:
+        taco:
+          $ref: '#/components/schemas/TacoRequest'
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+
+    OrderItemResponse:
+      type: object
+      properties:
+        taco:
+          $ref: '#/components/schemas/TacoResponse'
+        quantity:
+          type: integer
+          example: 2
+        unitPrice:
+          type: number
+          format: double
+          example: 4.50
+        lineTotal:
+          type: number
+          format: double
+          example: 9.00
+
+    OrderCreateRequest:
+      type: object
+      required:
+        - deliveryName
+        - deliveryStreet
+        - deliveryCity
+        - deliveryState
+        - deliveryZip
+      properties:
+        deliveryName:
+          type: string
+          example: Jane Doe
+        deliveryStreet:
+          type: string
+          example: 123 Main St
+        deliveryCity:
+          type: string
+          example: Austin
+        deliveryState:
+          type: string
+          example: TX
+        deliveryZip:
+          type: string
+          example: 78701
+        paymentMethodId:
+          type: string
+          example: pm_card_visa_1234
+        paymentToken:
+          type: string
+          example: tok_visa_test
+        couponCode:
+          type: string
+          example: TACO20
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemRequest'
+
+    OrderResponse:
+      type: object
+      required:
+        - id
+        - deliveryName
+        - total
+      properties:
+        id:
+          type: string
+          example: 64b8a1c9e4b0c23a8f999999
+        placedAt:
+          type: string
+          format: date-time
+        deliveryName:
+          type: string
+          example: Jane Doe
+        deliveryStreet:
+          type: string
+          example: 123 Main St
+        deliveryCity:
+          type: string
+          example: Austin
+        deliveryState:
+          type: string
+          example: TX
+        deliveryZip:
+          type: string
+          example: 78701
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemResponse'
+        subtotal:
+          type: number
+          format: double
+          example: 18.00
+        discountAmount:
+          type: number
+          format: double
+          example: 3.60
+        total:
+          type: number
+          format: double
+          example: 14.40
+        currency:
+          type: string
+          example: USD
+        status:
+          type: string
+          example: PLACED
+        brand:
+          type: string
+          example: Visa
+        last4:
+          type: string
+          example: '4242'
+
+    ReorderRequest:
+      type: object
+      properties:
+        deliveryName:
+          type: string
+          example: Jane Doe
+        paymentMethodId:
+          type: string
+          example: pm_card_visa_1234
+
+    OrderSummaryPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderDetailResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 5
+
+    OrderDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 64b8a1c9e4b0c23a8f999999
+        placedAt:
+          type: string
+          format: date-time
+        deliveryName:
+          type: string
+          example: Jane Doe
+        deliveryCity:
+          type: string
+          example: Austin
+        total:
+          type: number
+          example: 14.40
+        status:
+          type: string
+          example: READY
+
+    # --- FAVORITOS ---
+    FavoriteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: fav-12345
+        tacoId:
+          type: string
+          example: 64b8a1c9e4b0c23a8f123456
+        taco:
+          $ref: '#/components/schemas/TacoResponse'
+        createdAt:
+          type: string
+          format: date-time
+
+    # --- CUPONES ---
+    CouponValidateRequest:
+      type: object
+      required:
+        - code
+        - subtotal
+      properties:
+        code:
+          type: string
+          example: TACO20
+        subtotal:
+          type: number
+          format: double
+          example: 25.00
+
+    CouponValidateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          example: true
+        code:
+          type: string
+          example: TACO20
+        status:
+          type: string
+          example: APPLIED
+        message:
+          type: string
+          example: 20% discount applied
+        discountAmount:
+          type: number
+          format: double
+          example: 5.00
+        finalTotal:
+          type: number
+          format: double
+          example: 20.00
+        currency:
+          type: string
+          example: USD
+
+    # --- PAGOS (SIN CAMPOS SENSIBLES) ---
+    TokenizeRequest:
+      type: object
+      required:
+        - cardNumber
+        - expiration
+        - cvv
+      properties:
+        cardNumber:
+          type: string
+          example: 4111111111111111
+        expiration:
+          type: string
+          example: 12/28
+        cvv:
+          type: string
+          example: '123'
+
+    PaymentMethodResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: pm_987654321
+        brand:
+          type: string
+          example: Visa
+        last4:
+          type: string
+          example: '1111'
+        expiration:
+          type: string
+          example: 12/28
+        maskedToken:
+          type: string
+          example: tok_***1111
+        username:
+          type: string
+          example: habuma
+
+    # --- COCINA ---
+    KitchenOrderDto:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: 64b8a1c9e4b0c23a8f999999
+        status:
+          type: string
+          example: PREPARING
+        station:
+          type: string
+          example: STATION-1
+        placedAt:
+          type: string
+          format: date-time
+
+    KitchenClaimRequest:
+      type: object
+      properties:
+        station:
+          type: string
+          example: STATION-1
+
+    KitchenStatusUpdateRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [PREPARING, READY, DELIVERED]
+          example: READY
+
+    KitchenDlqStatsResponse:
+      type: object
+      properties:
+        processedCount:
+          type: integer
+          example: 42
+        failedCount:
+          type: integer
+          example: 2
+        replayedCount:
+          type: integer
+          example: 1
+
+    # --- ANUNCIOS OPERATIVOS ---
+    OpsAnnouncementRequest:
+      type: object
+      required:
+        - message
+        - severity
+      properties:
+        message:
+          type: string
+          example: Cocina operando con demoras por alta demanda
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+          example: WARNING
+        expiresInMinutes:
+          type: integer
+          example: 60
+
+    OpsAnnouncementDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ann-1234
+        message:
+          type: string
+          example: Cocina operando con demoras por alta demanda
+        severity:
+          type: string
+          example: WARNING
+        createdAt:
+          type: string
+          format: date-time
+
+    OpsAnnouncementAdminDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ann-1234
+        message:
+          type: string
+          example: Cocina operando con demoras por alta demanda
+        severity:
+          type: string
+          example: WARNING
+        createdBy:
+          type: string
+          example: ops_admin
+        active:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    # --- MODELO ESTÁNDAR DE ERROR (RFC 7807) ---
+    ApiProblem:
+      type: object
+      required:
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          example: about:blank
+        title:
+          type: string
+          example: Bad Request
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: Request validation failed
+        instance:
+          type: string
+          example: /api/v1/orders
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiProblemViolation'
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    ApiProblemViolation:
+      type: object
+      properties:
+        field:
+          type: string
+          example: deliveryName
+        message:
+          type: string
+          example: Delivery name is required

@@ -26,7 +26,7 @@ import tacos.web.api.dto.PaymentMethodResponse;
 import tacos.web.api.dto.TokenizeRequest;
 
 @RestController
-@RequestMapping(path = "/api/payment-methods", produces = "application/json")
+@RequestMapping(path = {"/api/v1/payment-methods", "/api/payment-methods"}, produces = "application/json")
 @CrossOrigin(origins = "*")
 public class PaymentMethodController {
 

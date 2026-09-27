@@ -14,7 +14,7 @@ import tacos.search.TacoPage;
 import tacos.web.api.dto.OrderDetailResponse;
 
 @RestController
-@RequestMapping(path = "/api/admin/orders", produces = "application/json")
+@RequestMapping(path = {"/api/v1/admin/orders", "/api/admin/orders"}, produces = "application/json")
 @CrossOrigin(origins = "http://localhost:8080")
 public class AdminOrderController {
 

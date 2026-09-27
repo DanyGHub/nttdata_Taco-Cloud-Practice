@@ -26,7 +26,7 @@ import tacos.web.api.dto.IngredientMapper;
 import tacos.web.api.dto.StockAdjustmentRequest;
 
 @RestController
-@RequestMapping(path = "/api/admin/ingredients", produces = "application/json")
+@RequestMapping(path = {"/api/v1/admin/ingredients", "/api/admin/ingredients"}, produces = "application/json")
 @CrossOrigin(origins = "*")
 public class AdminIngredientController {
 

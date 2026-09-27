@@ -55,10 +55,15 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         ).permitAll()
 
         // 3. Catálogo público: Lectura de ingredientes, tacos y anuncios operativos
-        .antMatchers(HttpMethod.GET, "/api/ingredients/**", "/api/tacos/**", "/api/announcements", "/api/announcements/**").permitAll()
+        .antMatchers(HttpMethod.GET,
+            "/api/ingredients/**", "/api/v1/ingredients/**",
+            "/api/tacos/**", "/api/v1/tacos/**",
+            "/api/announcements", "/api/announcements/**",
+            "/api/v1/announcements", "/api/v1/announcements/**").permitAll()
 
-        // 4. Registro de usuarios REST
-        .antMatchers(HttpMethod.POST, "/api/users").permitAll()
+        // 4. Registro de usuarios REST y Documentación OpenAPI
+        .antMatchers(HttpMethod.POST, "/api/users", "/api/v1/users").permitAll()
+        .antMatchers(HttpMethod.GET, "/openapi.yaml", "/api/v1/openapi.yaml", "/api/v1/api-docs", "/api-docs/**").permitAll()
 
         // 5. Actuator: Base, Health, Info y Lectura de Anuncios públicos; el resto sólo ADMIN
         .antMatchers(HttpMethod.GET, "/actuator", "/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/announcements").permitAll()
@@ -68,26 +73,30 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .antMatchers("/data-api/**").hasRole("ADMIN")
 
         // 7. Administración de ingredientes, catálogo, stock y endpoints administrativos
-        .antMatchers("/api/admin/**").hasRole("ADMIN")
-        .antMatchers(HttpMethod.POST, "/api/ingredients/**").hasRole("ADMIN")
-        .antMatchers(HttpMethod.PUT, "/api/ingredients/**").hasRole("ADMIN")
-        .antMatchers(HttpMethod.PATCH, "/api/ingredients/**").hasRole("ADMIN")
-        .antMatchers(HttpMethod.DELETE, "/api/ingredients/**").hasRole("ADMIN")
-        .antMatchers(HttpMethod.POST, "/api/tacos/validate").permitAll()
+        .antMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.POST, "/api/ingredients/**", "/api/v1/ingredients/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.PUT, "/api/ingredients/**", "/api/v1/ingredients/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.PATCH, "/api/ingredients/**", "/api/v1/ingredients/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.DELETE, "/api/ingredients/**", "/api/v1/ingredients/**").hasRole("ADMIN")
+        .antMatchers(HttpMethod.POST, "/api/tacos/validate", "/api/v1/tacos/validate").permitAll()
 
         // 8. Mutaciones de tacos
-        .antMatchers(HttpMethod.POST, "/api/tacos/**").hasAnyRole("USER", "ADMIN")
-        .antMatchers(HttpMethod.PUT, "/api/tacos/**").hasAnyRole("USER", "ADMIN")
-        .antMatchers(HttpMethod.DELETE, "/api/tacos/**").hasAnyRole("USER", "ADMIN")
+        .antMatchers(HttpMethod.POST, "/api/tacos/**", "/api/v1/tacos/**").hasAnyRole("USER", "ADMIN")
+        .antMatchers(HttpMethod.PUT, "/api/tacos/**", "/api/v1/tacos/**").hasAnyRole("USER", "ADMIN")
+        .antMatchers(HttpMethod.DELETE, "/api/tacos/**", "/api/v1/tacos/**").hasAnyRole("USER", "ADMIN")
 
         // 9. Cocina (debe ir antes de /orders/** por especificidad)
-        .antMatchers("/orders/receive/**", "/kitchen/**", "/api/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
+        .antMatchers("/orders/receive/**", "/kitchen/**", "/api/kitchen/**", "/api/v1/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
 
         // 10. Pedidos / Órdenes (API y Vistas Web), Métodos de Pago y Cupones
-        .antMatchers("/api/coupons/**", "/api/payment-methods/**", "/api/orders/**", "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN", "KITCHEN", "DELIVERY")
+        .antMatchers(
+            "/api/coupons/**", "/api/v1/coupons/**",
+            "/api/payment-methods/**", "/api/v1/payment-methods/**",
+            "/api/orders/**", "/api/v1/orders/**",
+            "/orders/**", "/discounts/**").hasAnyRole("USER", "ADMIN", "KITCHEN", "DELIVERY")
 
         // 11. TC-21 Favoritos por usuario autenticado
-        .antMatchers("/api/users/me/**").hasAnyRole("USER", "ADMIN")
+        .antMatchers("/api/users/me/**", "/api/v1/users/me/**").hasAnyRole("USER", "ADMIN")
 
         // 12. TC-11 Regla final: Deny-by-default
         .anyRequest().denyAll()
