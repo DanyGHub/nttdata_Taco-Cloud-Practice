@@ -87,6 +87,7 @@ public class OrderApiController {
   private OrderWorkflowService orderWorkflowService;
   private OrderEventMapper orderEventMapper;
   private OrderPlacementService orderPlacementService;
+  private tacos.idempotency.IdempotencyService idempotencyService;
 
   @Autowired
   public OrderApiController(OrderRepository repo,
@@ -102,7 +103,8 @@ public class OrderApiController {
                             @Autowired(required = false) OrderApplicationService orderApplicationService,
                             @Autowired(required = false) OrderWorkflowService orderWorkflowService,
                             @Autowired(required = false) OrderEventMapper orderEventMapper,
-                            @Autowired(required = false) OrderPlacementService orderPlacementService) {
+                            @Autowired(required = false) OrderPlacementService orderPlacementService,
+                            @Autowired(required = false) tacos.idempotency.IdempotencyService idempotencyService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
@@ -119,6 +121,28 @@ public class OrderApiController {
         : new OrderWorkflowService(repo, inventoryService, this.orderMapper);
     this.orderEventMapper = orderEventMapper != null ? orderEventMapper : new OrderEventMapper();
     this.orderPlacementService = orderPlacementService;
+    this.idempotencyService = idempotencyService;
+  }
+
+  public void setIdempotencyService(tacos.idempotency.IdempotencyService idempotencyService) {
+    this.idempotencyService = idempotencyService;
+  }
+
+  public OrderApiController(OrderRepository repo,
+                            OrderMessagingService orderMessages,
+                            EmailOrderService emailOrderService,
+                            OrderMapper orderMapper,
+                            UserRepository userRepo,
+                            PaymentMethodRepository paymentMethodRepo,
+                            PaymentGateway paymentGateway,
+                            PricingService pricingService,
+                            InventoryService inventoryService,
+                            TacoDesignValidator designValidator,
+                            OrderApplicationService orderApplicationService,
+                            OrderWorkflowService orderWorkflowService,
+                            OrderEventMapper orderEventMapper,
+                            OrderPlacementService orderPlacementService) {
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, orderEventMapper, orderPlacementService, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -133,7 +157,7 @@ public class OrderApiController {
                             TacoDesignValidator designValidator,
                             OrderApplicationService orderApplicationService,
                             OrderWorkflowService orderWorkflowService) {
-    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, null, null);
+    this(repo, orderMessages, emailOrderService, orderMapper, userRepo, paymentMethodRepo, paymentGateway, pricingService, inventoryService, designValidator, orderApplicationService, orderWorkflowService, null, null, null);
   }
 
   public OrderApiController(OrderRepository repo,
@@ -338,7 +362,29 @@ public class OrderApiController {
 
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<OrderResponse> postOrder(@Valid @RequestBody OrderCreateRequest request, Authentication authentication) {
+  public Mono<OrderResponse> postOrder(
+      @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+      @Valid @RequestBody OrderCreateRequest request,
+      Authentication authentication) {
+    String username = authentication != null ? authentication.getName() : null;
+
+    if (idempotencyService != null && idempotencyKey != null && !idempotencyKey.trim().isEmpty()) {
+      return idempotencyService.executeIdempotent(
+          idempotencyKey,
+          username,
+          request,
+          () -> doPlaceOrder(request, authentication)
+      );
+    }
+
+    return doPlaceOrder(request, authentication);
+  }
+
+  public Mono<OrderResponse> postOrder(OrderCreateRequest request, Authentication authentication) {
+    return postOrder(null, request, authentication);
+  }
+
+  private Mono<OrderResponse> doPlaceOrder(OrderCreateRequest request, Authentication authentication) {
     TacoOrder order = orderMapper.toDomain(request);
 
     return validateOrderTacos(order).then(Mono.defer(() -> {
